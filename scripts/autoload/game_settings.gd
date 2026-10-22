@@ -17,6 +17,10 @@ func _ready() -> void:
 	load_from_disk()
 	apply_audio()
 	apply_viewport()
+	Landscape.warmup()
+	KitFactory.warmup()
+	if ResourceLoader.exists(WorldLook.HDRI_PATH):
+		load(WorldLook.HDRI_PATH)
 
 
 func set_mouse_sensitivity(v: float) -> void:

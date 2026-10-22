@@ -4,43 +4,92 @@ extends RefCounted
 ## Runtime sci-fi / badlands kit. Named nodes keep VisualKit / combat hooks working.
 
 static var _wall_seq: int = 0
+static var _proto: Dictionary = {}
+static var _mesh_cache: Dictionary = {}
 
 
 static func build(slot: String) -> Node3D:
 	match slot:
 		"core_engine":
-			return _core()
+			return _proto_dup("core_engine", _core)
 		"building_wall":
-			return _wall()
+			var variant := _wall_seq % 4
+			_wall_seq += 1
+			return _proto_dup("wall_%d" % variant, _make_wall.bind(variant))
 		"building_turret":
-			return _turret()
+			return _proto_dup("building_turret", _turret)
 		"building_trap":
-			return _trap()
+			return _proto_dup("building_trap", _trap)
 		"building_repair_beacon":
-			return _beacon()
+			return _proto_dup("building_repair_beacon", _beacon)
 		"building_escape_ship":
-			return _ship()
+			return _proto_dup("building_escape_ship", _ship)
 		"storage_tank":
-			return _tank()
+			return _proto_dup("storage_tank", _tank)
 		"pulse_rifle":
-			return _rifle()
+			return _proto_dup("pulse_rifle", _rifle)
 		"scatter_cannon":
-			return _shotgun()
+			return _proto_dup("scatter_cannon", _shotgun)
 		"rock_a":
-			return _rock(11, Vector3(0.95, 0.72, 0.82))
+			return _rock(11, Vector3(0.95, 0.55, 0.82))
 		"rock_b":
-			return _rock(27, Vector3(1.15, 0.88, 0.95))
+			return _rock(27, Vector3(1.15, 0.48, 0.95))
 		"rock_c":
-			return _rock(43, Vector3(0.78, 0.7, 1.05))
+			return _rock(43, Vector3(0.78, 0.42, 1.05))
 		_:
 			return null
 
 
+static func warmup() -> void:
+	var t0 := Time.get_ticks_msec()
+	for slot in ["core_engine", "storage_tank", "building_turret", "building_trap", "pulse_rifle", "scatter_cannon"]:
+		var node := build(slot)
+		if node:
+			node.free()
+	for _i in 4:
+		var wall := build("building_wall")
+		if wall:
+			wall.free()
+	print("KIT WARMUP_MS=", Time.get_ticks_msec() - t0)
+
+
+static func _proto_dup(key: String, builder: Callable) -> Node3D:
+	if not _proto.has(key):
+		_proto[key] = builder.call()
+	return (_proto[key] as Node3D).duplicate()
+
+
 static func pebble_mesh() -> ArrayMesh:
+	var baked := load_baked_mesh("pebble")
+	if baked:
+		return baked
 	return boulder_mesh(91, Vector3(1.0, 0.42, 1.0), 8, 6)
 
 
+static func cover_boulder_mesh(kind: int) -> ArrayMesh:
+	var i: int = clampi(kind, 0, 2)
+	var baked := load_baked_mesh("boulder_%d" % i)
+	if baked:
+		return baked
+	var seeds: Array[int] = [11, 27, 43]
+	var scales: Array[Vector3] = [
+		Vector3(1.15, 0.38, 0.82),
+		Vector3(1.35, 0.32, 0.95),
+		Vector3(0.92, 0.36, 1.18),
+	]
+	return boulder_mesh(seeds[i], scales[i], 14, 9)
+
+
+static func load_baked_mesh(stem: String) -> ArrayMesh:
+	var path := "res://assets/baked/%s.res" % stem
+	if ResourceLoader.exists(path):
+		return load(path) as ArrayMesh
+	return null
+
+
 static func scrub_mesh() -> ArrayMesh:
+	if _mesh_cache.has("scrub"):
+		return _mesh_cache["scrub"]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
@@ -56,7 +105,9 @@ static func scrub_mesh() -> ArrayMesh:
 		_tri(st, base - side, base + side, tip)
 		_tri(st, base + side, base - side, tip + Vector3(0, -0.02, 0))
 	st.generate_normals()
-	return st.commit()
+	var mesh := st.commit()
+	_mesh_cache["scrub"] = mesh
+	return mesh
 
 
 static func _core() -> Node3D:
@@ -102,9 +153,7 @@ static func _core() -> Node3D:
 	return root
 
 
-static func _wall() -> Node3D:
-	var variant := _wall_seq % 4
-	_wall_seq += 1
+static func _make_wall(variant: int) -> Node3D:
 	var hull_h: float = [1.62, 2.52, 1.28, 2.08][variant]
 	var root := Node3D.new()
 	root.name = "wall"
@@ -172,6 +221,13 @@ static func _wall() -> Node3D:
 		_box(root, "Slat%d" % i, Vector3(0.58, 0.03, 0.03), Vector3(0, mid_y + hull_h * 0.04 + float(i) * 0.085, 1.01), "Corrugated")
 	_box(root, "LiteL", Vector3(0.28, 0.06, 0.06), Vector3(-0.46, top_y - 0.12, 0.96), "EmissiveCyan")
 	_box(root, "LiteR", Vector3(0.28, 0.06, 0.06), Vector3(0.46, top_y - 0.12, 0.96), "EmissiveCyan")
+	_box(root, "DoorRecess", Vector3(0.72, hull_h * 0.58, 0.08), Vector3(0.02, 0.38 + hull_h * 0.22, 0.90), "DarkMetal")
+	_box(root, "DoorLeaf", Vector3(0.58, hull_h * 0.50, 0.04), Vector3(0.02, 0.38 + hull_h * 0.20, 0.96), "PaintedMetal")
+	_box(root, "Lintel", Vector3(0.92, 0.08, 0.14), Vector3(0.02, 0.38 + hull_h * 0.54, 0.94), "Oxidized")
+	_box(root, "Clapboard0", Vector3(1.48, 0.10, 0.05), Vector3(0.0, mid_y - hull_h * 0.18, 0.92), "Corrugated")
+	_box(root, "Clapboard1", Vector3(1.40, 0.10, 0.05), Vector3(0.04, mid_y - hull_h * 0.08, 0.94), "Corrugated")
+	_box(root, "Sill", Vector3(0.86, 0.06, 0.16), Vector3(-0.02, 0.34, 1.02), "Concrete")
+	_box(root, "Downspout", Vector3(0.05, hull_h * 0.72, 0.05), Vector3(0.92, mid_y - 0.08, 0.88), "Rust")
 	span_cable(root, Vector3(-0.9, top_y + 0.15, 0.9), Vector3(-1.15, 0.18, 1.15), "Cable0", 0.018)
 	span_cable(root, Vector3(0.85, top_y + 0.2, -0.7), Vector3(1.2, 0.2, -1.05), "Cable1", 0.016)
 	_cyl(root, "BaseDust", 1.55, 0.06, Vector3(0.0, 0.03, 0.0), "Sand", 10)
@@ -262,6 +318,11 @@ static func _turret() -> Node3D:
 	_cyl(head, "Optic", 0.045, 0.12, Vector3(0.0, 0.28, -0.16), "DarkMetal", 10, Vector3(-PI * 0.5, 0, 0))
 	_cyl(head, "OpticGlass", 0.032, 0.02, Vector3(0.0, 0.28, -0.22), "Glass", 8, Vector3(-PI * 0.5, 0, 0))
 	_box(head, "AmmoDrum", Vector3(0.22, 0.16, 0.22), Vector3(0.28, -0.02, 0.12), "PaintedMetal")
+	_box(head, "ArmorCheekL", Vector3(0.08, 0.22, 0.38), Vector3(-0.28, 0.12, -0.04), "Oxidized")
+	_box(head, "ArmorCheekR", Vector3(0.08, 0.22, 0.38), Vector3(0.28, 0.12, -0.04), "Oxidized")
+	_box(head, "Mantlet", Vector3(0.28, 0.22, 0.08), Vector3(0.0, 0.12, -0.28), "DarkMetal")
+	_box(root, "BasePlate", Vector3(1.05, 0.05, 1.05), Vector3(0.0, 0.03, 0.0), "Concrete")
+	_box(root, "AccessHatch", Vector3(0.22, 0.04, 0.28), Vector3(-0.42, 0.20, 0.18), "PaintedMetal")
 	span_cable(head, Vector3(0.22, -0.08, 0.08), Vector3(0.42, -0.85, 0.08), "PowerCable", 0.014)
 	var muzzle := Marker3D.new()
 	muzzle.name = "Muzzle"
@@ -384,6 +445,10 @@ static func _rifle() -> Node3D:
 	muzzle.name = "Muzzle"
 	muzzle.position = Vector3(0.0, 0.03, -0.56)
 	root.add_child(muzzle)
+	_box(root, "ReceiverSculpt", Vector3(0.038, 0.042, 0.132), Vector3(0.0, 0.028, 0.046), "Metal")
+	_cyl(root, "BarrelStep", 0.011, 0.04, Vector3(0.0, 0.03, -0.255), "DarkMetal", 12, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "StockHeel", 0.028, 0.022, Vector3(0.0, 0.01, 0.328), "Polymer", 12, Vector3(-PI * 0.5, 0, 0))
+	compact(root)
 	return root
 
 
@@ -414,9 +479,18 @@ static func _rock(seed: int, scale: Vector3) -> Node3D:
 
 
 static func boulder_mesh(seed: int, scale: Vector3, segs: int = 16, rings: int = 11) -> ArrayMesh:
+	var key := "%d_%.3f_%.3f_%.3f_%d_%d" % [seed, scale.x, scale.y, scale.z, segs, rings]
+	if _mesh_cache.has(key):
+		return _mesh_cache[key]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var pts: Array[Vector3] = []
+	# Bedded sandstone slab: flatten the sphere, cut a few fracture planes, terrace strata.
+	var n_a := Vector3(_n3(Vector3(0.2, 0.7, -0.1), seed) - 0.5, 0.18, _n3(Vector3(-0.4, 0.2, 0.6), seed + 1) - 0.5).normalized()
+	var n_b := Vector3(_n3(Vector3(0.8, 0.1, 0.2), seed + 2) - 0.5, 0.08, _n3(Vector3(0.1, 0.4, -0.7), seed + 4) - 0.5).normalized()
+	var n_c := Vector3(0.15, 0.96, 0.12).normalized()
+	var cut_a := 0.22 + 0.12 * _n3(Vector3(1, 0, 0), seed)
+	var cut_b := 0.28 + 0.10 * _n3(Vector3(0, 1, 0), seed + 5)
 	for r in range(rings + 1):
 		var v := float(r) / float(rings)
 		var phi := v * PI
@@ -427,23 +501,35 @@ static func boulder_mesh(seed: int, scale: Vector3, segs: int = 16, rings: int =
 			var n1 := _n3(dir, seed)
 			var n2 := _n3(dir * 2.15 + Vector3(0.17, 0.05, -0.11), seed + 3)
 			var n3 := _n3(dir * 4.4 + Vector3(-0.3, 0.2, 0.14), seed + 9)
-			var disp := 0.11 * n1 + 0.055 * n2 + 0.025 * n3
-			disp -= clampf(dir.y, 0.0, 1.0) * 0.07 * n1
-			var band := sin(dir.y * 8.5 + n1 * 0.8) * 0.04
-			var p := Vector3(dir.x * scale.x, dir.y * scale.y, dir.z * scale.z)
+			var disp := 0.08 * n1 + 0.04 * n2 + 0.018 * n3
+			disp -= clampf(dir.y, 0.0, 1.0) * 0.10 * n1
+			var p := Vector3(dir.x * scale.x, dir.y * scale.y * 0.72, dir.z * scale.z)
 			p *= 1.0 + disp
-			p.x += band * 0.16 * scale.x
-			p.z += band * 0.12 * scale.z
+			# Horizontal beds / terraces.
+			var bed := sin(p.y * (11.0 / maxf(0.08, scale.y)) + n1 * 0.7)
+			p.y += bed * 0.028 * scale.y
+			p.x *= 1.0 + 0.08 * bed * (1.0 - absf(dir.y))
+			p.z *= 1.0 + 0.06 * bed * (1.0 - absf(dir.y))
+			# Fracture planes: flatten one face, chip another.
+			var da := p.dot(n_a) - cut_a * scale.x
+			if da > 0.0:
+				p -= n_a * da * 0.92
+			var db := p.dot(n_b) - cut_b * scale.z
+			if db > 0.0:
+				p -= n_b * db * 0.78
+			var dc := p.dot(n_c) - scale.y * 0.55
+			if dc > 0.0:
+				p -= n_c * dc * 0.85
 			pts.append(p)
 	var min_y := 999.0
 	for p in pts:
 		min_y = minf(min_y, p.y)
 	for i in pts.size():
 		pts[i].y -= min_y
-		if pts[i].y < scale.y * 0.02:
-			pts[i].y = scale.y * 0.02
-			pts[i].x *= 1.04
-			pts[i].z *= 1.04
+		if pts[i].y < scale.y * 0.018:
+			pts[i].y = scale.y * 0.018
+			pts[i].x *= 1.08
+			pts[i].z *= 1.08
 	for r in rings:
 		for s in segs:
 			var i0 := r * segs + s
@@ -453,7 +539,9 @@ static func boulder_mesh(seed: int, scale: Vector3, segs: int = 16, rings: int =
 			_tri(st, pts[i0], pts[i2], pts[i1])
 			_tri(st, pts[i1], pts[i2], pts[i3])
 	st.generate_normals()
-	return st.commit()
+	var mesh := st.commit()
+	_mesh_cache[key] = mesh
+	return mesh
 
 
 static func compact(root: Node3D) -> void:

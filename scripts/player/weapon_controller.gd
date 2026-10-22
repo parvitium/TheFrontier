@@ -109,6 +109,10 @@ func _prepare_viewmodel(root: Node) -> void:
 		var mi := child as MeshInstance3D
 		if mi == null:
 			continue
+		if String(mi.name).begins_with("Lod0_"):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			continue
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		var src: Material = mi.material_override

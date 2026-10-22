@@ -14,6 +14,23 @@ const MID_SIZE := 240.0
 const MID_QUADS := 56
 const FAR_QUADS := 28
 const FOUNDATION_SINK := 0.04
+const BAKED_DIR := "res://assets/baked"
+
+static var last_build_msec: int = 0
+static var _mesh_cache: Dictionary = {}
+static var _heightmap_cache: HeightMapShape3D = null
+static var _cover_spots: Array[Vector3] = [
+	Vector3(12, 0, 8), Vector3(-14, 0, 11), Vector3(18, 0, -16),
+	Vector3(-20, 0, -12), Vector3(8, 0, -22), Vector3(-9, 0, 20),
+	Vector3(24, 0, 6), Vector3(-26, 0, -4), Vector3(16, 0, 22),
+	Vector3(-17, 0, -21), Vector3(30, 0, -8), Vector3(-32, 0, 10),
+	Vector3(6, 0, 32), Vector3(-4, 0, -30),
+	Vector3(5.5, 0, -3.5), Vector3(-6.5, 0, -2.2), Vector3(3.8, 0, -7.5),
+	Vector3(-4.2, 0, 4.8), Vector3(9.5, 0, -5.0), Vector3(-8.8, 0, -8.0),
+	Vector3(2.4, 0, 9.6), Vector3(-11.0, 0, 6.4), Vector3(13.2, 0, -9.5),
+	Vector3(-15.5, 0, -6.8), Vector3(21.0, 0, 12.0), Vector3(-22.5, 0, 8.5),
+	Vector3(4.0, 0, -14.5), Vector3(-7.2, 0, -16.0), Vector3(11.8, 0, 15.4),
+]
 
 
 static func height_at(x: float, z: float) -> float:
@@ -62,6 +79,12 @@ static func col_world_xz(ix: int, iz: int) -> Vector2:
 
 
 static func make_heightmap_shape() -> HeightMapShape3D:
+	if _heightmap_cache:
+		return _heightmap_cache
+	var baked := _load_baked("heightmap") as HeightMapShape3D
+	if baked:
+		_heightmap_cache = baked
+		return baked
 	var shape := HeightMapShape3D.new()
 	var n: int = COL_VERTS
 	shape.map_width = n
@@ -73,6 +96,7 @@ static func make_heightmap_shape() -> HeightMapShape3D:
 			var xz := col_world_xz(ix, iz)
 			data[iz * n + ix] = height_at(xz.x, xz.y)
 	shape.map_data = data
+	_heightmap_cache = shape
 	return shape
 
 
@@ -96,44 +120,73 @@ static func _carved_relief(x: float, z: float) -> float:
 	return h
 
 
+static func warmup() -> void:
+	var t0 := Time.get_ticks_msec()
+	PbrLibrary.terrain()
+	PbrLibrary.boulder()
+	PbrLibrary.dust()
+	PbrLibrary.scrub()
+	_cache_grid("NearSand", NEAR_SIZE, NEAR_QUADS, 0.0)
+	_cache_grid("Playfield", MAP_COLLISION, PLAY_QUADS, NEAR_SIZE * 0.5)
+	_cache_grid("TerrainMid", MID_SIZE, MID_QUADS, MAP_COLLISION * 0.5)
+	_cache_grid("Terrain", WORLD_SIZE, FAR_QUADS, MID_SIZE * 0.5)
+	make_heightmap_shape()
+	for k in 3:
+		KitFactory.cover_boulder_mesh(k)
+	KitFactory.pebble_mesh()
+	KitFactory.scrub_mesh()
+	KitFactory.load_baked_mesh("mesa_talus")
+	KitFactory.load_baked_mesh("horizon_boulder")
+	print("LANDSCAPE WARMUP_MS=", Time.get_ticks_msec() - t0)
+
+
 static func build(root: Node3D, with_collision: bool = true) -> void:
+	var t0 := Time.get_ticks_msec()
 	var holder := Node3D.new()
 	holder.name = "Landscape"
 	root.add_child(holder)
 	_terrain_mesh(holder)
+	var t_mesh := Time.get_ticks_msec()
 	if with_collision:
 		_playfield_collision(holder)
+	var t_col := Time.get_ticks_msec()
 	_mesa_debris(holder)
 	_dressing(holder)
 	_cover_rocks(holder)
 	_horizon_scrub(holder)
+	last_build_msec = Time.get_ticks_msec() - t0
+	print("LANDSCAPE BUILD_MS=", last_build_msec, " mesh=", t_mesh - t0, " col=", t_col - t_mesh, " dress=", Time.get_ticks_msec() - t_col)
 
 
 static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = false) -> Node3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
-	var kinds := ["rock_a", "rock_b", "rock_c"]
-	var inst := VisualKit.instance(kinds[seed % kinds.size()])
-	if inst == null:
+	var mesh := KitFactory.cover_boulder_mesh(seed % 3)
+	if mesh == null:
 		return null
+	var inst := MeshInstance3D.new()
+	inst.name = "Rock_%d" % seed
+	inst.mesh = mesh
+	inst.material_override = PbrLibrary.boulder()
 	var ground_y := height_at(pos.x, pos.z)
-	var sx := rng.randf_range(0.55, 1.05)
-	var sy := rng.randf_range(0.72, 1.25)
-	var sz := rng.randf_range(0.55, 1.05)
+	var sx := rng.randf_range(0.85, 1.55)
+	var sy := rng.randf_range(0.42, 0.72)
+	var sz := rng.randf_range(0.70, 1.35)
 	inst.scale = Vector3(sx, sy, sz)
-	inst.rotation = Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(0.0, TAU), rng.randf_range(-0.06, 0.06))
-	inst.position = Vector3(pos.x, ground_y - sy * 0.22, pos.z)
+	inst.rotation = Vector3(rng.randf_range(-0.06, 0.06), rng.randf_range(0.0, TAU), rng.randf_range(-0.04, 0.04))
+	var bottom := mesh.get_aabb().position.y
+	inst.position = Vector3(pos.x, ground_y - bottom * sy - 0.04, pos.z)
 	parent.add_child(inst)
-	_dust_skirt(parent, Vector3(pos.x, ground_y + 0.015, pos.z), maxf(sx, sz) * 0.72, sy)
+	_dust_skirt(parent, Vector3(pos.x, ground_y + 0.015, pos.z), maxf(sx, sz) * 0.62, sy)
 	if collide:
 		var body := StaticBody3D.new()
 		body.name = "RockCol_%d" % seed
 		body.collision_layer = 1
 		body.collision_mask = 0
-		body.position = Vector3(pos.x, ground_y + sy * 0.28, pos.z)
+		body.position = Vector3(pos.x, ground_y + sy * 0.18, pos.z)
 		var col := CollisionShape3D.new()
 		var shape := SphereShape3D.new()
-		shape.radius = maxf(sx, sz) * 0.48
+		shape.radius = maxf(sx, sz) * 0.42
 		col.shape = shape
 		body.add_child(col)
 		parent.add_child(body)
@@ -141,36 +194,145 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 
 
 static func _terrain_mesh(parent: Node3D) -> void:
-	var near := _grid_mesh(parent, "NearSand", NEAR_SIZE, NEAR_QUADS, 0.0, 0.18)
+	var near := _grid_mesh(parent, "NearSand", NEAR_SIZE, NEAR_QUADS, 0.0)
 	near.position.y = 0.006
-	_grid_mesh(parent, "Playfield", MAP_COLLISION, PLAY_QUADS, NEAR_SIZE * 0.5, 0.35)
-	var mid := _grid_mesh(parent, "TerrainMid", MID_SIZE, MID_QUADS, MAP_COLLISION * 0.5, 1.1)
+	_grid_mesh(parent, "Playfield", MAP_COLLISION, PLAY_QUADS, NEAR_SIZE * 0.5)
+	var mid := MeshInstance3D.new()
+	mid.name = "TerrainMid"
 	mid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var far := _grid_mesh(parent, "Terrain", WORLD_SIZE, FAR_QUADS, MID_SIZE * 0.5, 3.2)
+	mid.extra_cull_margin = 8.0
+	parent.add_child(mid)
+	var far := MeshInstance3D.new()
+	far.name = "Terrain"
 	far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	far.extra_cull_margin = 8.0
+	parent.add_child(far)
 	_horizon_impostors(parent)
+	_fill_lod_later(parent, mid, far)
 
 
-static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_inner: float, n_eps: float) -> MeshInstance3D:
+static func _fill_lod_later(parent: Node3D, mid: MeshInstance3D, far: MeshInstance3D) -> void:
+	var do_fill := func() -> void:
+		if is_instance_valid(mid):
+			_apply_grid(mid, MID_SIZE, MID_QUADS, MAP_COLLISION * 0.5)
+		if is_instance_valid(far):
+			_apply_grid(far, WORLD_SIZE, FAR_QUADS, MID_SIZE * 0.5)
+	var tree := parent.get_tree()
+	if tree:
+		tree.process_frame.connect(do_fill, CONNECT_ONE_SHOT)
+	else:
+		do_fill.call()
+
+
+static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_inner: float) -> MeshInstance3D:
+	var visual := MeshInstance3D.new()
+	visual.name = mesh_name
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	visual.extra_cull_margin = 8.0
+	parent.add_child(visual)
+	_apply_grid(visual, size, quads, skip_inner)
+	return visual
+
+
+static func _apply_grid(visual: MeshInstance3D, size: float, quads: int, skip_inner: float) -> void:
+	visual.mesh = _cached_grid(visual.name, size, quads, skip_inner)
+	visual.material_override = PbrLibrary.terrain()
+
+
+static func _cache_grid(mesh_name: String, size: float, quads: int, skip_inner: float) -> void:
+	_cached_grid(mesh_name, size, quads, skip_inner)
+
+
+static func _cached_grid(mesh_name: String, size: float, quads: int, skip_inner: float) -> ArrayMesh:
+	var cache_key := "%s_%.3f_%d_%.3f" % [mesh_name, size, quads, skip_inner]
+	var mesh: ArrayMesh = _mesh_cache.get(cache_key) as ArrayMesh
+	if mesh:
+		return mesh
+	mesh = _load_baked(mesh_name.to_snake_case()) as ArrayMesh
+	if mesh == null:
+		mesh = _build_grid_array(size, quads, skip_inner)
+	_mesh_cache[cache_key] = mesh
+	return mesh
+
+
+static func _load_baked(stem: String) -> Resource:
+	var path := "%s/%s.res" % [BAKED_DIR, stem]
+	if ResourceLoader.exists(path):
+		return load(path)
+	return null
+
+
+static func bake_to_disk(dir: String = BAKED_DIR) -> void:
+	var abs_dir := ProjectSettings.globalize_path(dir)
+	DirAccess.make_dir_recursive_absolute(abs_dir)
+	var jobs: Array = [
+		["near_sand", NEAR_SIZE, NEAR_QUADS, 0.0],
+		["playfield", MAP_COLLISION, PLAY_QUADS, NEAR_SIZE * 0.5],
+		["terrain_mid", MID_SIZE, MID_QUADS, MAP_COLLISION * 0.5],
+		["terrain", WORLD_SIZE, FAR_QUADS, MID_SIZE * 0.5],
+	]
+	for job in jobs:
+		var mesh := _build_grid_array(float(job[1]), int(job[2]), float(job[3]))
+		var path := "%s/%s.res" % [dir, str(job[0])]
+		var err := ResourceSaver.save(mesh, path)
+		print("BAKE ", path, " err=", err, " surf=", mesh.get_surface_count())
+	var shape := HeightMapShape3D.new()
+	shape.map_width = COL_VERTS
+	shape.map_depth = COL_VERTS
+	var data := PackedFloat32Array()
+	data.resize(COL_VERTS * COL_VERTS)
+	for iz in COL_VERTS:
+		for ix in COL_VERTS:
+			var xz := col_world_xz(ix, iz)
+			data[iz * COL_VERTS + ix] = height_at(xz.x, xz.y)
+	shape.map_data = data
+	_heightmap_cache = shape
+	print("BAKE heightmap err=", ResourceSaver.save(shape, "%s/heightmap.res" % dir))
+	for k in 3:
+		var boulder := KitFactory.cover_boulder_mesh(k)
+		print("BAKE boulder ", k, " err=", ResourceSaver.save(boulder, "%s/boulder_%d.res" % [dir, k]))
+	print("BAKE pebble err=", ResourceSaver.save(KitFactory.pebble_mesh(), "%s/pebble.res" % dir))
+	print("BAKE scrub err=", ResourceSaver.save(KitFactory.scrub_mesh(), "%s/scrub.res" % dir))
+	print("BAKE mesa_talus err=", ResourceSaver.save(KitFactory.boulder_mesh(61, Vector3(1.0, 0.55, 1.0), 10, 7), "%s/mesa_talus.res" % dir))
+	print("BAKE horizon_boulder err=", ResourceSaver.save(KitFactory.boulder_mesh(77, Vector3(1.4, 0.7, 1.2), 8, 6), "%s/horizon_boulder.res" % dir))
+
+
+static func _build_grid_array(size: float, quads: int, skip_inner: float) -> ArrayMesh:
+	# Indexed grid. Normals from neighbor heights — one height_at per vertex,
+	# no SurfaceTool tangent bake (shader builds a tangent frame).
 	var n: int = quads
 	var step := size / float(n)
 	var origin := -size * 0.5
 	var stride := n + 1
+	var count := stride * stride
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
-	verts.resize(stride * stride)
-	norms.resize(stride * stride)
-	uvs.resize(stride * stride)
+	verts.resize(count)
+	norms.resize(count)
+	uvs.resize(count)
 	for iz in stride:
 		for ix in stride:
 			var x := origin + float(ix) * step
 			var z := origin + float(iz) * step
 			var i := iz * stride + ix
 			verts[i] = Vector3(x, height_at(x, z), z)
-			norms[i] = normal_at(x, z, n_eps)
 			uvs[i] = Vector2(x, z) * 0.02
+	for iz in stride:
+		for ix in stride:
+			var i := iz * stride + ix
+			var ixl: int = maxi(ix - 1, 0)
+			var ixr: int = mini(ix + 1, n)
+			var izd: int = maxi(iz - 1, 0)
+			var izu: int = mini(iz + 1, n)
+			var hl := verts[iz * stride + ixl].y
+			var hr := verts[iz * stride + ixr].y
+			var hd := verts[izd * stride + ix].y
+			var hu := verts[izu * stride + ix].y
+			var dx := float(ixr - ixl) * step
+			var dz := float(izu - izd) * step
+			norms[i] = Vector3(hl - hr, dx + dz, hd - hu).normalized()
 	for iz in n:
 		for ix in n:
 			if skip_inner > 0.0:
@@ -196,18 +358,7 @@ static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: in
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var st := SurfaceTool.new()
-	st.create_from(mesh, 0)
-	st.generate_tangents()
-	mesh = st.commit()
-	var visual := MeshInstance3D.new()
-	visual.name = mesh_name
-	visual.mesh = mesh
-	visual.material_override = PbrLibrary.terrain()
-	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	visual.extra_cull_margin = 8.0
-	parent.add_child(visual)
-	return visual
+	return mesh
 
 
 static func _playfield_collision(parent: Node3D) -> void:
@@ -247,7 +398,9 @@ static func _mesa_debris(parent: Node3D) -> void:
 	mm_i.name = "MesaTalusScatter"
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = KitFactory.boulder_mesh(61, Vector3(1.0, 0.55, 1.0), 10, 7)
+	mm.mesh = KitFactory.load_baked_mesh("mesa_talus")
+	if mm.mesh == null:
+		mm.mesh = KitFactory.boulder_mesh(61, Vector3(1.0, 0.55, 1.0), 10, 7)
 	mm.instance_count = MESA_SPECS.size() * 3
 	mm_i.multimesh = mm
 	mm_i.material_override = PbrLibrary.boulder()
@@ -348,23 +501,75 @@ static func _decals(parent: Node3D, rng: RandomNumberGenerator) -> void:
 
 
 static func _cover_rocks(parent: Node3D) -> void:
-	var spots := [
-		Vector3(12, 0, 8), Vector3(-14, 0, 11), Vector3(18, 0, -16),
-		Vector3(-20, 0, -12), Vector3(8, 0, -22), Vector3(-9, 0, 20),
-		Vector3(24, 0, 6), Vector3(-26, 0, -4), Vector3(16, 0, 22),
-		Vector3(-17, 0, -21), Vector3(30, 0, -8), Vector3(-32, 0, 10),
-		Vector3(6, 0, 32), Vector3(-4, 0, -30),
-		Vector3(5.5, 0, -3.5), Vector3(-6.5, 0, -2.2), Vector3(3.8, 0, -7.5),
-		Vector3(-4.2, 0, 4.8), Vector3(9.5, 0, -5.0), Vector3(-8.8, 0, -8.0),
-		Vector3(2.4, 0, 9.6), Vector3(-11.0, 0, 6.4), Vector3(13.2, 0, -9.5),
-		Vector3(-15.5, 0, -6.8), Vector3(21.0, 0, 12.0), Vector3(-22.5, 0, 8.5),
-		Vector3(4.0, 0, -14.5), Vector3(-7.2, 0, -16.0), Vector3(11.8, 0, 15.4),
-	]
 	var holder := Node3D.new()
 	holder.name = "CoverBoulders"
 	parent.add_child(holder)
-	for i in spots.size():
-		plant_rock(holder, spots[i], 200 + i * 13, i < 8)
+	var proto: Array[Mesh] = [
+		KitFactory.cover_boulder_mesh(0),
+		KitFactory.cover_boulder_mesh(1),
+		KitFactory.cover_boulder_mesh(2),
+	]
+	var grouped: Array = [[], [], []]
+	var skirt_xf: Array[Transform3D] = []
+	for i in _cover_spots.size():
+		var pos: Vector3 = _cover_spots[i]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 200 + i * 13
+		var kind: int = i % 3
+		var ground_y := height_at(pos.x, pos.z)
+		var sx := rng.randf_range(0.85, 1.55)
+		var sy := rng.randf_range(0.42, 0.72)
+		var sz := rng.randf_range(0.70, 1.35)
+		var yaw := rng.randf() * TAU
+		var xf := _grounded_xf(proto[kind], pos.x, ground_y - 0.04, pos.z, Vector3(sx, sy, sz), yaw)
+		grouped[kind].append(xf)
+		var skirt := Transform3D()
+		var rad := maxf(sx, sz) * 0.62
+		skirt = skirt.scaled(Vector3(rad, 1.0, rad * 1.12))
+		skirt.origin = Vector3(pos.x, ground_y + 0.015, pos.z)
+		skirt_xf.append(skirt)
+		if i < 8:
+			var body := StaticBody3D.new()
+			body.name = "RockCol_%d" % (200 + i * 13)
+			body.collision_layer = 1
+			body.collision_mask = 0
+			body.position = Vector3(pos.x, ground_y + sy * 0.18, pos.z)
+			var col := CollisionShape3D.new()
+			var shape := SphereShape3D.new()
+			shape.radius = maxf(sx, sz) * 0.42
+			col.shape = shape
+			body.add_child(col)
+			holder.add_child(body)
+	for k in 3:
+		var mm_i := MultiMeshInstance3D.new()
+		mm_i.name = "CoverScatter%d" % k
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = proto[k]
+		mm.instance_count = grouped[k].size()
+		mm_i.multimesh = mm
+		mm_i.material_override = PbrLibrary.boulder()
+		holder.add_child(mm_i)
+		for j in grouped[k].size():
+			mm.set_instance_transform(j, grouped[k][j])
+	var skirts := MultiMeshInstance3D.new()
+	skirts.name = "CoverSkirts"
+	var sm := MultiMesh.new()
+	sm.transform_format = MultiMesh.TRANSFORM_3D
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 1.0
+	cyl.bottom_radius = 1.18
+	cyl.height = 0.07
+	cyl.radial_segments = 8
+	cyl.rings = 0
+	sm.mesh = cyl
+	sm.instance_count = skirt_xf.size()
+	skirts.multimesh = sm
+	skirts.material_override = PbrLibrary.dust()
+	skirts.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(skirts)
+	for i in skirt_xf.size():
+		sm.set_instance_transform(i, skirt_xf[i])
 
 
 static func _horizon_scrub(parent: Node3D) -> void:
@@ -374,7 +579,9 @@ static func _horizon_scrub(parent: Node3D) -> void:
 	inst.name = "HorizonBoulders"
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = KitFactory.boulder_mesh(77, Vector3(1.4, 0.7, 1.2), 8, 6)
+	mm.mesh = KitFactory.load_baked_mesh("horizon_boulder")
+	if mm.mesh == null:
+		mm.mesh = KitFactory.boulder_mesh(77, Vector3(1.4, 0.7, 1.2), 8, 6)
 	mm.instance_count = 16
 	inst.multimesh = mm
 	inst.material_override = PbrLibrary.boulder()
@@ -463,29 +670,36 @@ static func _mesa_field(x: float, z: float) -> float:
 	var n3 := _vnoise(x * 0.6, z * 0.6, 0.055)
 	var n4 := _vnoise(x - 9.0, z + 13.0, 0.12)
 	for m in MESA_SPECS:
-		var dx := x - m.x + (n - 0.5) * m.w * 0.16
-		var dz := z - m.z + (n2 - 0.5) * m.w * 0.16
+		var dx := x - m.x + (n - 0.5) * m.w * 0.10
+		var dz := z - m.z + (n2 - 0.5) * m.w * 0.10
+		var ang := atan2(dz, dx)
+		var lobe := 0.14 * sin(ang * 3.0 + n * 5.1) + 0.08 * sin(ang * 5.0 - n2 * 3.4)
 		var md := sqrt(dx * dx + dz * dz)
-		var r_top := m.w * (0.26 + n * 0.08)
-		var r_cliff := m.w * (0.50 + n2 * 0.05)
-		var r_talus := m.w * (1.18 + n2 * 0.08)
+		var r_top := m.w * (0.40 + n * 0.05) * (1.0 + lobe)
+		var r_cliff := m.w * (0.49 + n2 * 0.03) * (1.0 + lobe * 0.55)
+		var r_talus := m.w * (1.28 + n2 * 0.08) * (1.0 + lobe * 0.25)
 		var gully := pow(absf(n3 * 2.0 - 1.0), 1.45)
-		var cap := m.y * (0.90 + n * 0.12)
+		var cap := m.y * (0.92 + n * 0.08)
 		var land := 0.0
 		if md <= r_top:
-			var dish := (md / maxf(0.001, r_top))
-			dish = dish * dish
-			land = cap * (0.78 + n4 * 0.16 - gully * 0.30 - dish * 0.10)
+			var u := md / maxf(0.001, r_top)
+			var dish := u * u * 0.12
+			var caprock := 0.04 * (n4 - 0.5)
+			land = cap * (0.90 + caprock - gully * 0.22 - dish)
 		elif md <= r_cliff:
 			var t := (md - r_top) / maxf(0.001, r_cliff - r_top)
-			var top_h := cap * (0.78 + n4 * 0.16 - gully * 0.22)
-			var foot_h := cap * 0.30
-			land = lerpf(top_h, foot_h, t * t * (3.0 - 2.0 * t))
+			# Steep caprock lip: most of the drop happens in the first meters of cliff.
+			var t_steep := 1.0 - pow(1.0 - t, 3.2)
+			var top_h := cap * (0.90 + n4 * 0.05 - gully * 0.18)
+			var foot_h := cap * 0.28
+			var face := n2 * 0.08 * sin(ang * 7.0)
+			land = lerpf(top_h, foot_h, t_steep) + face
 		elif md <= r_talus:
 			var t := (md - r_cliff) / maxf(0.001, r_talus - r_cliff)
-			var foot_h := cap * 0.30
+			var foot_h := cap * 0.28
 			var apron := 1.0 - t
-			land = foot_h * apron * apron * (0.85 + n2 * 0.2)
+			var scree := 0.12 * n * sin(ang * 4.0 + n2)
+			land = foot_h * apron * apron * (0.88 + n2 * 0.16) + scree * apron
 		h = maxf(h, land)
 	h += (n2 - 0.5) * 0.9 * _smooth(PLAY_RADIUS + 20.0, 80.0, sqrt(x * x + z * z))
 	return h

@@ -25,12 +25,22 @@ varying vec3 world_n;
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	// Tangent frame from the geometric normal so CPU meshes can skip generate_tangents().
+	vec3 up = abs(NORMAL.y) > 0.94 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+	TANGENT = normalize(cross(up, NORMAL));
+	BINORMAL = normalize(cross(NORMAL, TANGENT));
 }
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
 	return fract((p3.x + p3.y) * p3.z);
+}
+
+vec2 hash22(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xx + p3.yz) * p3.zy);
 }
 
 float vnoise(vec2 p) {
@@ -55,6 +65,33 @@ float fbm(vec2 p) {
 	return v;
 }
 
+vec2 rot2(vec2 v, float ang) {
+	float c = cos(ang);
+	float s = sin(ang);
+	return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
+}
+
+// Triangle-grid stochastic tiling: rotate/offset UVs per cell, barycentric blend.
+vec4 sample_stoch(sampler2D tex, vec2 uv) {
+	vec2 i = floor(uv);
+	vec2 f = fract(uv);
+	vec2 v0 = i;
+	vec2 v1 = i + vec2(1.0, 0.0);
+	vec2 v2 = i + vec2(0.0, 1.0);
+	vec3 w = vec3(1.0 - f.x - f.y, f.x, f.y);
+	if (w.x < 0.0) {
+		v0 = i + vec2(1.0, 1.0);
+		w = vec3(f.x + f.y - 1.0, 1.0 - f.y, 1.0 - f.x);
+	}
+	vec2 h0 = hash22(v0);
+	vec2 h1 = hash22(v1);
+	vec2 h2 = hash22(v2);
+	vec4 c0 = texture(tex, rot2(uv, h0.x * 6.2831853) * (0.72 + h0.y * 0.22) + h0 * 5.3);
+	vec4 c1 = texture(tex, rot2(uv, h1.x * 6.2831853) * (0.72 + h1.y * 0.22) + h1 * 5.3);
+	vec4 c2 = texture(tex, rot2(uv, h2.x * 6.2831853) * (0.72 + h2.y * 0.22) + h2 * 5.3);
+	return c0 * w.x + c1 * w.y + c2 * w.z;
+}
+
 vec4 sample_tri(sampler2D tex, vec3 p, vec3 n, float scale) {
 	vec3 blending = abs(n);
 	blending = pow(blending, vec3(4.0));
@@ -65,11 +102,23 @@ vec4 sample_tri(sampler2D tex, vec3 p, vec3 n, float scale) {
 	return xaxis * blending.x + yaxis * blending.y + zaxis * blending.z;
 }
 
-vec3 sample_dual(sampler2D tex, vec3 p, vec3 n, float scale) {
-	vec3 detail = sample_tri(tex, p, n, scale).rgb;
-	vec3 macro = sample_tri(tex, p + vec3(19.0, 0.0, 11.0), n, scale * 0.13).rgb;
-	float w = 0.58 + 0.22 * fbm(p.xz * 0.0073);
-	return mix(detail, macro, w);
+vec4 sample_tri_stoch(sampler2D tex, vec3 p, vec3 n, float scale) {
+	vec3 blending = abs(n);
+	blending = pow(blending, vec3(4.0));
+	blending = blending / (blending.x + blending.y + blending.z + 1e-5);
+	vec4 xaxis = sample_stoch(tex, p.yz * scale);
+	vec4 yaxis = sample_stoch(tex, p.xz * scale);
+	vec4 zaxis = sample_stoch(tex, p.xy * scale);
+	return xaxis * blending.x + yaxis * blending.y + zaxis * blending.z;
+}
+
+vec3 sample_sand(sampler2D tex, vec3 p, vec3 n, float scale) {
+	vec3 detail = sample_tri_stoch(tex, p, n, scale).rgb;
+	vec3 meso = sample_tri_stoch(tex, p + vec3(7.0, 0.0, 3.0), n, scale * 0.31).rgb;
+	vec3 macro = sample_tri(tex, p + vec3(19.0, 0.0, 11.0), n, scale * 0.11).rgb;
+	float w_meso = 0.38 + 0.18 * fbm(p.xz * 0.011);
+	float w_macro = 0.28 + 0.16 * fbm(p.xz * 0.0048 + 5.0);
+	return mix(mix(detail, meso, w_meso), macro, w_macro);
 }
 
 void fragment() {
@@ -79,22 +128,20 @@ void fragment() {
 	rock_w = clamp(rock_w + height_rock * 0.55, 0.0, 1.0);
 
 	float radial = length(world_pos.xz);
-	float macro = fbm(world_pos.xz * 0.016);
 	float path = fbm(world_pos.xz * 0.045 + vec2(8.0, 3.0));
 	float wash = smoothstep(0.48, 0.78, path);
 	float core_pad = 1.0 - smoothstep(6.0, 16.0, radial);
-	// Packed earth is the same sand family, just darker/warmer — no cool mud.
 	float packed = wash * 0.42 * (1.0 - rock_w) * (1.0 - core_pad * 0.85);
-	float sand_w = clamp(1.0 - rock_w - packed, 0.0, 1.0);
 	float dirt_w = clamp(packed, 0.0, 1.0);
-	sand_w = clamp(1.0 - rock_w - dirt_w, 0.0, 1.0);
+	float sand_w = clamp(1.0 - rock_w - dirt_w, 0.0, 1.0);
 
-	vec3 sand = sample_dual(sand_albedo, world_pos, world_n, uv_scale) * sand_tint;
-	vec3 dirt = sample_dual(dirt_albedo, world_pos, world_n, uv_scale * 0.72) * dirt_tint;
-	vec3 rock = sample_dual(rock_albedo, world_pos, world_n, uv_scale * 0.48) * rock_tint;
+	vec3 sand = sample_sand(sand_albedo, world_pos, world_n, uv_scale) * sand_tint;
+	vec3 dirt = sample_sand(dirt_albedo, world_pos, world_n, uv_scale * 0.72) * dirt_tint;
+	vec3 rock = sample_tri(rock_albedo, world_pos, world_n, uv_scale * 0.48).rgb * rock_tint;
 
-	float blotch = smoothstep(0.32, 0.72, fbm(world_pos.xz * 0.028 + 12.0));
-	sand *= mix(vec3(1.1, 0.96, 0.78), vec3(0.86, 0.58, 0.32), blotch * 0.48);
+	float blotch = smoothstep(0.28, 0.78, fbm(world_pos.xz * 0.021 + 12.0));
+	float dune = fbm(world_pos.xz * 0.0062 + 3.4);
+	sand *= mix(vec3(1.12, 0.97, 0.78), vec3(0.82, 0.54, 0.30), blotch * 0.42 + dune * 0.28);
 	dirt *= mix(vec3(1.08, 0.86, 0.55), vec3(0.78, 0.5, 0.26), blotch * 0.35);
 
 	float specks = step(0.93, vnoise(world_pos.xz * 0.42));
@@ -113,7 +160,7 @@ void fragment() {
 	albedo = mix(albedo, haze_color, haze * 0.58);
 	ALBEDO = albedo;
 
-	float rs = sample_tri(sand_rough, world_pos, world_n, uv_scale).r;
+	float rs = sample_tri_stoch(sand_rough, world_pos, world_n, uv_scale).r;
 	float rd = sample_tri(dirt_rough, world_pos, world_n, uv_scale * 0.92).r;
 	float rr = sample_tri(rock_rough, world_pos, world_n, uv_scale * 0.48).r;
 	ROUGHNESS = clamp(rs * sand_w + rd * dirt_w + rr * rock_w, 0.32, 1.0);
@@ -121,17 +168,16 @@ void fragment() {
 	METALLIC = 0.01 * (1.0 - rock_w);
 	SPECULAR = mix(0.18, 0.04, haze);
 
-	vec3 ns = sample_tri(sand_normal, world_pos, world_n, uv_scale).rgb;
-	vec3 ns_fine = sample_tri(sand_normal, world_pos, world_n, uv_scale * 4.4).rgb;
-	vec3 ns_rip = sample_tri(sand_normal, world_pos, world_n, uv_scale * 11.0).rgb;
-	float rip_x = sin(world_pos.x * 8.2 + world_pos.z * 1.7);
-	float rip_z = sin(world_pos.z * 7.4 - world_pos.x * 1.35);
+	vec3 ns = sample_tri_stoch(sand_normal, world_pos, world_n, uv_scale).rgb;
+	vec3 ns_fine = sample_tri_stoch(sand_normal, world_pos, world_n, uv_scale * 3.6).rgb;
+	float rip_x = sin(world_pos.x * 5.4 + world_pos.z * 1.15);
+	float rip_z = sin(world_pos.z * 4.8 - world_pos.x * 0.95);
 	vec3 nproc = vec3(rip_x * 0.5 + 0.5, rip_z * 0.5 + 0.5, 1.0);
-	ns = mix(mix(mix(ns, ns_fine, 0.48), ns_rip, 0.28), nproc, 0.22 * sand_w);
+	ns = mix(mix(ns, ns_fine, 0.40), nproc, 0.16 * sand_w);
 	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.92).rgb;
 	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.48).rgb;
 	vec3 nr_band = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.18).rgb;
 	nr = mix(nr, nr_band, strata * 0.42);
 	NORMAL_MAP = ns * sand_w + nd * dirt_w + nr * rock_w;
-	NORMAL_MAP_DEPTH = mix(1.35, 0.12, haze);
+	NORMAL_MAP_DEPTH = mix(1.15, 0.12, haze);
 }
