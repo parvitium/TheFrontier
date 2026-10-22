@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot
+          key: godot-4.7.2-stable-linux-x86_64
+
+      - name: Install Godot 4.7.2
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir -p godot
+          if [[ ! -x godot/Godot_v4.7.2-stable_linux.x86_64 ]]; then
+            curl -L --fail -o godot.zip \
+              https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+            unzip -o godot.zip -d godot
+            chmod +x godot/Godot_v4.7.2-stable_linux.x86_64
+          fi
+
+      - name: Import project
+        run: ${{ runner.temp }}/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path . --import --quit
+
+      - name: Headless unit tests
+        run: ${{ runner.temp }}/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path . --script res://tests/run_tests.gd
+
+      - name: Headless smoke (menu)
+        run: ${{ runner.temp }}/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path . --quit-after 2

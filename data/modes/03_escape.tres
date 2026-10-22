@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="GameModeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/game_mode_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "escape"
+display_name = "Escape"
+description = "Scavenge enough scrap and crystal to assemble an escape ship and leave."
+kind = 2
+survive_waves = 0
+survive_seconds = 0.0
+gather_count = 0
+relics_on_map = 0
+escape_building_id = "escape_ship"
+starting_scrap = 35
+starting_crystal = 10
+rest_seconds = 24.0
+core_max_health = 400.0
+player_max_health = 100.0
+player_respawn_seconds = 5.0
+death_scrap_tax_ratio = 0.15
+first_rest_seconds = 20.0
