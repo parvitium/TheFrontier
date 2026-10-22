@@ -30,12 +30,5 @@ func _physics_process(delta: float) -> void:
 func _on_body(body: Node) -> void:
 	if body.is_in_group("mobs"):
 		return
-	if body.is_in_group("player"):
-		Session.cmd_damage_player(damage)
-	elif body.is_in_group("core"):
-		Session.cmd_damage_core(damage)
-	else:
-		var health := body.get_node_or_null("Health") as Health
-		if health:
-			health.apply(damage, self)
+	Session.cmd_resolve_hit("mob", body, damage)
 	queue_free()

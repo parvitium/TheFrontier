@@ -126,6 +126,16 @@ func _move(dir: Vector3, delta: float) -> void:
 
 
 func _pick_focus() -> Node3D:
+	var primary := _pick_primary()
+	if primary != null and not _should_breach(primary):
+		return primary
+	var breach := _pick_breach_building()
+	if breach != null:
+		return breach
+	return primary
+
+
+func _pick_primary() -> Node3D:
 	var core := get_tree().get_first_node_in_group("core") as Node3D
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	var player_ok := player != null and Session.state.player_alive
@@ -139,6 +149,62 @@ func _pick_focus() -> Node3D:
 				return player
 			return core
 	return core
+
+
+func _should_breach(target: Node3D) -> bool:
+	var from := PlacementRules.world_to_cell(global_position)
+	var enclosed := not BreachRules.core_reachable(Session.state.occupied_cells, from)
+	if enclosed:
+		if target != null and target.is_in_group("player") and _agent_can_reach(target):
+			return false
+		return true
+	return _agent_unreachable_far(target)
+
+
+func _agent_can_reach(target: Node3D) -> bool:
+	if _agent == null or target == null:
+		return true
+	_agent.target_position = target.global_position
+	return _agent.is_target_reachable()
+
+
+func _agent_unreachable_far(target: Node3D) -> bool:
+	if _agent == null or target == null:
+		return false
+	_agent.target_position = target.global_position
+	if not _agent.is_target_reachable():
+		return true
+	var to := target.global_position - global_position
+	to.y = 0.0
+	return _agent.is_navigation_finished() and to.length() > def.melee_range + 1.2
+
+
+func _pick_breach_building() -> Node3D:
+	var from := PlacementRules.world_to_cell(global_position)
+	var serials := BreachRules.blocking_serials(Session.state.occupied_cells, from)
+	var best := _nearest_blocking(serials)
+	if best != null:
+		return best
+	return _nearest_blocking([])
+
+
+func _nearest_blocking(serials: Array[int]) -> Node3D:
+	var best: Node3D = null
+	var best_d := INF
+	for node in get_tree().get_nodes_in_group("buildings"):
+		if not node is BuildingBase:
+			continue
+		var building := node as BuildingBase
+		if serials.size() > 0 and not serials.has(building.serial):
+			continue
+		var bdef := BuildingCatalog.by_id(building.building_id)
+		if bdef == null or not bdef.blocks_navigation:
+			continue
+		var d := global_position.distance_to(building.global_position)
+		if d < best_d:
+			best_d = d
+			best = building
+	return best
 
 
 func _try_melee(target: Node3D) -> void:
@@ -176,16 +242,7 @@ func _maybe_break_walls() -> void:
 func _deal(target: Object, amount: float) -> void:
 	if target == null or not target is Node:
 		return
-	var node := target as Node
-	if node.is_in_group("player"):
-		Session.cmd_damage_player(amount)
-		return
-	if node.is_in_group("core"):
-		Session.cmd_damage_core(amount)
-		return
-	var health := node.get_node_or_null("Health") as Health
-	if health:
-		health.apply(amount, self)
+	Session.cmd_resolve_hit("mob", target, amount)
 
 
 func _on_died(_source: Node) -> void:

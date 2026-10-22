@@ -19,15 +19,15 @@ func _build_visual(visual: Node3D, def: BuildingDef, _size: Vector3) -> void:
 func _physics_process(delta: float) -> void:
 	if not Session.state.is_running():
 		return
-	if global_position.distance_to(Vector3.ZERO) <= RADIUS:
+	var core := get_tree().get_first_node_in_group("core") as Node3D
+	var core_pos := core.global_position if core else Vector3.ZERO
+	if global_position.distance_to(core_pos) <= RADIUS:
 		Session.cmd_heal_core(CORE_HPS * delta)
 	for node in get_tree().get_nodes_in_group("buildings"):
 		if node == self:
 			continue
-		if node is Node3D and global_position.distance_to((node as Node3D).global_position) <= RADIUS:
-			var health := node.get_node_or_null("Health") as Health
-			if health:
-				health.heal(BUILDING_HPS * delta)
+		if node is BuildingBase and global_position.distance_to((node as Node3D).global_position) <= RADIUS:
+			Session.cmd_heal_building((node as BuildingBase).serial, BUILDING_HPS * delta)
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player and global_position.distance_to(player.global_position) <= RADIUS:
 		Session.cmd_heal_player(PLAYER_HPS * delta)

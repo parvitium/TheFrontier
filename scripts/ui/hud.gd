@@ -69,12 +69,15 @@ func _process(delta: float) -> void:
 	_core.text = "CORE  %d / %d" % [round(state.core_health), round(state.core_max_health)]
 	_hp.text = "HULL  %d / %d" % [round(state.player_health), round(state.player_max_health)]
 	_res.text = "SCRAP %d    CRYSTAL %d    SCORE %d" % [state.resources.get(Ids.SCRAP, 0), state.resources.get(Ids.CRYSTAL, 0), state.score]
-	var player := get_tree().get_first_node_in_group("player") as PlayerController
-	if player and player._weapons:
-		_ammo.text = "%s  %s" % [player._weapons.current_def().display_name, player._weapons.ammo_text()]
-		_hint.text = player.interact_label()
+	var wdef := Session.current_weapon_def()
+	if wdef:
+		_ammo.text = "%s  %s" % [wdef.display_name, Session.ammo_text()]
 	else:
 		_ammo.text = ""
+	var player := get_tree().get_first_node_in_group("player") as PlayerController
+	if player:
+		_hint.text = player.interact_label()
+	else:
 		_hint.text = ""
 
 
@@ -87,7 +90,7 @@ func _objective_text(mode: GameModeDef, state: GameState) -> String:
 		GameModeDef.Kind.ESCAPE:
 			return "Assemble the escape ship  (%d scrap, %d crystal)" % [BuildingCatalog.by_id(Ids.ESCAPE_SHIP).scrap_cost, BuildingCatalog.by_id(Ids.ESCAPE_SHIP).crystal_cost]
 		GameModeDef.Kind.ENDLESS:
-			return "Endless  ·  waves cleared %d" % state.waves_completed
+			return "Endless  ·  waves cleared %d  ·  relics %d" % [state.waves_completed, state.relics_collected]
 	return ""
 
 

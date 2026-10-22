@@ -19,6 +19,10 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# PauseMenu sets Session.sim_paused and pauses the tree. This node
+	# inherits pause, so rest / respawn / combat clocks freeze with the view.
+	if get_tree().paused or Session.sim_paused:
+		return
 	Session.tick(delta)
 	if _nav_dirty:
 		_nav_cooldown -= delta

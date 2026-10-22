@@ -1,13 +1,24 @@
 extends Node
 
 ## Authority for run rules. Presentation and input emit commands into this node.
-## Keep this separable from views so a later networked host can own the same API.
+## Session owns economy, placement, win eval, wave counters, core/player HP,
+## building HP, weapon ammo, and combat resolution (hitscan / turret / trap).
+## Views listen to GameBus. A later networked host can own this same API.
+##
+## Pause: `set_paused(true)` freezes `tick` (rest, respawn, fire/turret
+## cooldowns, reload). PauseMenu also pauses the scene tree so views stop.
+## That is a full sim halt, not a HUD-only overlay.
+
+const TURRET_INTERVAL := 0.4
+const TURRET_DAMAGE := 15.0
+const TRAP_DPS := 8.0
 
 var state: GameState = GameState.new()
 var mode: GameModeDef = ModeCatalog.by_id(Ids.MODE_SURVIVE)
 var selected_mode_id: String = Ids.MODE_SURVIVE
 var last_outcome: int = WinEvaluator.Outcome.NONE
 var last_stats: Dictionary = {}
+var sim_paused: bool = false
 
 
 func start_run(mode_id: String = "") -> void:
@@ -18,18 +29,32 @@ func start_run(mode_id: String = "") -> void:
 	state.begin(mode)
 	last_outcome = WinEvaluator.Outcome.NONE
 	last_stats = {}
+	sim_paused = false
 	GameBus.run_started.emit(mode.id)
 	GameBus.phase_changed.emit(state.phase)
 	GameBus.resources_changed.emit(state.resources.duplicate())
 	GameBus.core_health_changed.emit(state.core_health, state.core_max_health)
 	GameBus.player_health_changed.emit(state.player_health, state.player_max_health)
+	GameBus.ammo_changed.emit()
 	GameBus.banner.emit("Rest phase — fortify the core.")
 
 
+func set_paused(on: bool) -> void:
+	sim_paused = on
+
+
 func tick(delta: float) -> void:
-	if not state.is_running():
+	if sim_paused or not state.is_running():
 		return
 	state.elapsed_time += delta
+	state.fire_cooldown = max(0.0, state.fire_cooldown - delta)
+	var turret_keys: Array = state.turret_cooldown.keys()
+	for serial in turret_keys:
+		state.turret_cooldown[serial] = maxf(0.0, float(state.turret_cooldown[serial]) - delta)
+	if state.reload_remaining > 0.0:
+		state.reload_remaining = max(0.0, state.reload_remaining - delta)
+		if state.reload_remaining <= 0.0:
+			_finish_reload()
 	if not state.player_alive:
 		state.respawn_in = max(0.0, state.respawn_in - delta)
 		if state.respawn_in <= 0.0 and state.core_health > 0.0:
@@ -67,6 +92,7 @@ func cmd_try_place(building_id: String, origin: Vector2i) -> Dictionary:
 	for cell: Vector2i in placement.cells:
 		cells.append(cell)
 	var serial: int = state.occupy(cells, building_id)
+	_register_building(serial, def)
 	GameBus.resources_changed.emit(state.resources.duplicate())
 	GameBus.building_placed.emit(building_id, origin)
 	if building_id == Ids.ESCAPE_SHIP:
@@ -87,22 +113,23 @@ func cmd_dismantle_at(origin: Vector2i) -> Dictionary:
 	var refund := Economy.refund(def.cost() if def else Economy.empty_wallet(), 0.5)
 	if building_id == Ids.ESCAPE_SHIP:
 		state.escape_ship_built = false
-	state.free_serial(serial)
+	_forget_building(serial)
 	state.resources = Economy.add(state.resources, refund)
 	GameBus.resources_changed.emit(state.resources.duplicate())
-	GameBus.building_destroyed.emit(building_id)
+	GameBus.building_destroyed.emit(building_id, serial)
 	GameBus.nav_dirty.emit()
 	return {ok = true, reason = "", building_id = building_id, origin = origin, refund = refund, serial = serial}
 
 
 func cmd_building_destroyed(serial: int) -> void:
-	var building_id := state.free_serial(serial)
+	var building_id := state.building_id_of(serial)
 	if building_id == "":
 		return
 	if building_id == Ids.ESCAPE_SHIP:
 		state.escape_ship_built = false
+	_forget_building(serial)
 	state.buildings_destroyed += 1
-	GameBus.building_destroyed.emit(building_id)
+	GameBus.building_destroyed.emit(building_id, serial)
 	GameBus.nav_dirty.emit()
 
 
@@ -142,17 +169,187 @@ func cmd_heal_player(amount: float) -> void:
 	GameBus.player_health_changed.emit(state.player_health, state.player_max_health)
 
 
+func cmd_damage_building(serial: int, amount: float) -> Dictionary:
+	if not state.is_running() or not state.building_hp.has(serial) or amount <= 0.0:
+		return {ok = false, died = false, hp = 0.0}
+	var hp := maxf(0.0, float(state.building_hp[serial]) - amount)
+	state.building_hp[serial] = hp
+	var maximum := float(state.building_max_hp.get(serial, hp))
+	GameBus.building_health_changed.emit(serial, hp, maximum)
+	if hp <= 0.0:
+		cmd_building_destroyed(serial)
+		return {ok = true, died = true, hp = 0.0}
+	return {ok = true, died = false, hp = hp}
+
+
+func cmd_heal_building(serial: int, amount: float) -> bool:
+	if not state.is_running() or not state.building_hp.has(serial) or amount <= 0.0:
+		return false
+	var maximum := float(state.building_max_hp.get(serial, 0.0))
+	var hp := minf(maximum, float(state.building_hp[serial]) + amount)
+	state.building_hp[serial] = hp
+	GameBus.building_health_changed.emit(serial, hp, maximum)
+	return true
+
+
+func cmd_apply_damage(source: String, kind: String, id: Variant, amount: float) -> Dictionary:
+	if not state.is_running() or amount <= 0.0:
+		return {ok = false, reason = "inactive"}
+	if source == "player" and kind == "building":
+		return {ok = false, reason = "friendly"}
+	if kind == "building":
+		return cmd_damage_building(int(id), amount)
+	if kind == "core":
+		if source == "player" or source == "turret" or source == "trap":
+			return {ok = false, reason = "friendly"}
+		cmd_damage_core(amount)
+		return {ok = true, reason = ""}
+	if kind == "player":
+		if source == "player":
+			return {ok = false, reason = "friendly"}
+		cmd_damage_player(amount)
+		return {ok = true, reason = ""}
+	return {ok = false, reason = "unknown"}
+
+
+func cmd_resolve_hit(source: String, target: Object, amount: float) -> bool:
+	if not state.is_running() or amount <= 0.0 or target == null or not target is Node:
+		return false
+	var node := target as Node
+	if node.is_in_group("player"):
+		return cmd_apply_damage(source, "player", 0, amount).ok
+	if node.is_in_group("core"):
+		return cmd_apply_damage(source, "core", 0, amount).ok
+	if node.is_in_group("buildings") or node is BuildingBase:
+		var serial := _serial_of(node)
+		if serial < 0:
+			return false
+		return cmd_apply_damage(source, "building", serial, amount).ok
+	if node.is_in_group("mobs"):
+		return cmd_damage_mob(node, amount)
+	return false
+
+
+func cmd_damage_mob(target: Node, amount: float) -> bool:
+	if target == null or not state.is_running() or amount <= 0.0:
+		return false
+	var health := target.get_node_or_null("Health") as Health
+	if health == null:
+		return false
+	health.apply(amount, null)
+	return true
+
+
+func cmd_try_turret_fire(serial: int, target: Node, damage: float = TURRET_DAMAGE, interval: float = TURRET_INTERVAL) -> bool:
+	if not state.is_running():
+		return false
+	if not state.building_hp.has(serial) or float(state.building_hp[serial]) <= 0.0:
+		return false
+	if float(state.turret_cooldown.get(serial, 0.0)) > 0.0:
+		return false
+	if target == null:
+		return false
+	state.turret_cooldown[serial] = interval
+	return cmd_resolve_hit("turret", target, damage)
+
+
+func cmd_trap_pulse(serial: int, target: Node, delta: float, dps: float = TRAP_DPS) -> bool:
+	if not state.is_running() or delta <= 0.0:
+		return false
+	if not state.building_hp.has(serial) or float(state.building_hp[serial]) <= 0.0:
+		return false
+	return cmd_resolve_hit("trap", target, dps * delta)
+
+
+func cmd_select_weapon(i: int) -> bool:
+	if i < 0 or i >= state.weapons.size():
+		return false
+	state.selected_weapon = i
+	state.reload_remaining = 0.0
+	GameBus.ammo_changed.emit()
+	return true
+
+
+func cmd_try_fire() -> Dictionary:
+	if not state.is_running() or not state.player_alive:
+		return {ok = false, reason = "Cannot fire."}
+	if state.reload_remaining > 0.0:
+		return {ok = false, reason = "Reloading."}
+	if state.fire_cooldown > 0.0:
+		return {ok = false, reason = "Cooldown."}
+	if state.weapons.is_empty():
+		return {ok = false, reason = "No weapon."}
+	var pack: Dictionary = state.weapons[state.selected_weapon]
+	var def := WeaponCatalog.by_id(str(pack.id))
+	if def == null:
+		return {ok = false, reason = "Unknown weapon."}
+	if int(pack.mag) <= 0:
+		cmd_start_reload()
+		return {ok = false, reason = "Empty magazine."}
+	pack.mag = int(pack.mag) - 1
+	state.weapons[state.selected_weapon] = pack
+	state.fire_cooldown = def.fire_interval
+	GameBus.ammo_changed.emit()
+	return {
+		ok = true,
+		reason = "",
+		damage = def.damage,
+		pellets = def.pellets,
+		spread = def.spread_degrees,
+		range = def.range,
+		weapon_id = def.id,
+	}
+
+
+func cmd_start_reload() -> bool:
+	if not state.is_running() or not state.player_alive:
+		return false
+	if state.reload_remaining > 0.0 or state.weapons.is_empty():
+		return false
+	var pack: Dictionary = state.weapons[state.selected_weapon]
+	var def := WeaponCatalog.by_id(str(pack.id))
+	if def == null:
+		return false
+	if int(pack.mag) >= def.magazine_size or int(pack.reserve) <= 0:
+		return false
+	state.reload_remaining = def.reload_time
+	GameBus.ammo_changed.emit()
+	return true
+
+
+func current_weapon_def() -> WeaponDef:
+	if state.weapons.is_empty():
+		return null
+	return WeaponCatalog.by_id(str(state.weapons[state.selected_weapon].id))
+
+
+func ammo_text() -> String:
+	if state.reload_remaining > 0.0:
+		return "RELOADING"
+	if state.weapons.is_empty():
+		return ""
+	var pack: Dictionary = state.weapons[state.selected_weapon]
+	return "%d / %d" % [int(pack.mag), int(pack.reserve)]
+
+
 func cmd_collect_relic() -> void:
 	if not state.is_running():
 		return
 	state.relics_collected += 1
 	state.score += 50
 	GameBus.relic_collected.emit(state.relics_collected, mode.gather_count)
-	GameBus.banner.emit("Relic recovered (%d/%d)." % [state.relics_collected, mode.gather_count])
+	if mode.gather_count > 0:
+		GameBus.banner.emit("Relic recovered (%d/%d)." % [state.relics_collected, mode.gather_count])
+	else:
+		GameBus.banner.emit("Relic recovered. Score +50.")
 	_evaluate()
 
 
 func cmd_mark_escape_built() -> void:
+	if not state.is_running():
+		return
+	if mode.kind != GameModeDef.Kind.ESCAPE:
+		return
 	state.escape_ship_built = true
 	GameBus.banner.emit("Escape ship assembled.")
 	_evaluate()
@@ -186,6 +383,57 @@ func _building_allowed(def: BuildingDef) -> bool:
 	return mode.kind == GameModeDef.Kind.ESCAPE and def.id == mode.escape_building_id
 
 
+func _register_building(serial: int, def: BuildingDef) -> void:
+	state.building_hp[serial] = def.max_health
+	state.building_max_hp[serial] = def.max_health
+	state.turret_cooldown[serial] = 0.0
+	GameBus.building_health_changed.emit(serial, def.max_health, def.max_health)
+
+
+func _forget_building(serial: int) -> void:
+	state.free_serial(serial)
+	state.building_hp.erase(serial)
+	state.building_max_hp.erase(serial)
+	state.turret_cooldown.erase(serial)
+
+
+func _serial_of(node: Node) -> int:
+	if node is BuildingBase:
+		return (node as BuildingBase).serial
+	if node.has_meta("building_serial"):
+		return int(node.get_meta("building_serial"))
+	return -1
+
+
+func _finish_reload() -> void:
+	if state.weapons.is_empty():
+		return
+	var pack: Dictionary = state.weapons[state.selected_weapon]
+	var def := WeaponCatalog.by_id(str(pack.id))
+	if def == null:
+		return
+	var need: int = def.magazine_size - int(pack.mag)
+	var take: int = mini(need, int(pack.reserve))
+	pack.mag = int(pack.mag) + take
+	pack.reserve = int(pack.reserve) - take
+	state.weapons[state.selected_weapon] = pack
+	GameBus.ammo_changed.emit()
+
+
+func _restock_ammo() -> void:
+	for i in state.weapons.size():
+		var pack: Dictionary = state.weapons[i]
+		var def := WeaponCatalog.by_id(str(pack.id))
+		if def == null:
+			continue
+		var missing: int = def.reserve - int(pack.reserve)
+		if missing > 0:
+			pack.reserve = int(pack.reserve) + maxi(1, int(ceil(float(missing) * 0.35)))
+			state.weapons[i] = pack
+	GameBus.ammo_changed.emit()
+	GameBus.restock_ammo.emit()
+
+
 func _begin_wave() -> void:
 	state.wave_index += 1
 	state.phase = GameState.Phase.WAVE
@@ -207,7 +455,7 @@ func _clear_wave() -> void:
 	state.phase = GameState.Phase.REST
 	state.rest_remaining = mode.rest_seconds
 	GameBus.phase_changed.emit(state.phase)
-	GameBus.restock_ammo.emit()
+	_restock_ammo()
 	GameBus.banner.emit("Wave cleared. Rest %.0fs." % state.rest_remaining)
 
 

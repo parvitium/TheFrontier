@@ -42,6 +42,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _pause() -> void:
+	Session.set_paused(true)
 	get_tree().paused = true
 	_root.visible = true
 	if DisplayServer.get_name() != "headless":
@@ -49,6 +50,7 @@ func _pause() -> void:
 
 
 func _resume() -> void:
+	Session.set_paused(false)
 	get_tree().paused = false
 	_root.visible = false
 	if DisplayServer.get_name() != "headless" and Session.state.player_alive:
@@ -56,12 +58,14 @@ func _resume() -> void:
 
 
 func _restart() -> void:
+	Session.set_paused(false)
 	get_tree().paused = false
 	Session.start_run(Session.mode.id)
 	get_tree().reload_current_scene()
 
 
 func _menu() -> void:
+	Session.set_paused(false)
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

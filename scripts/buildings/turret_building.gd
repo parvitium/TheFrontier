@@ -5,7 +5,6 @@ const RANGE := 18.0
 const INTERVAL := 0.4
 const DAMAGE := 15.0
 
-var _cooldown: float = 0.0
 var _head: Node3D
 
 
@@ -21,22 +20,20 @@ func _build_visual(visual: Node3D, def: BuildingDef, size: Vector3) -> void:
 	visual.add_child(pole)
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if not Session.state.is_running():
 		return
-	_cooldown = max(0.0, _cooldown - delta)
 	var target := _nearest_mob()
 	if target == null:
 		return
 	var look := target.global_position
 	look.y = _head.global_position.y if _head else look.y
 	if _head:
-		_head.look_at(look, Vector3.UP)
-	if _cooldown <= 0.0 and _has_line_of_sight(target):
-		_cooldown = INTERVAL
-		var health := target.get_node_or_null("Health") as Health
-		if health:
-			health.apply(DAMAGE, self)
+		var dir := look - _head.global_position
+		if dir.length() > 0.05 and absf(dir.normalized().dot(Vector3.UP)) < 0.995:
+			_head.look_at(look, Vector3.UP)
+	if _has_line_of_sight(target):
+		Session.cmd_try_turret_fire(serial, target, DAMAGE, INTERVAL)
 
 
 func _has_line_of_sight(target: Node3D) -> bool:

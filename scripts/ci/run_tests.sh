@@ -9,4 +9,5 @@ if ! command -v "$GODOT" >/dev/null 2>&1; then
 fi
 cd "$ROOT"
 "$GODOT" --headless --path "$ROOT" --import --quit
-"$GODOT" --headless --path "$ROOT" --script res://tests/run_tests.gd
+"$GODOT" --headless --path "$ROOT" --scene res://tests/test_runner.tscn
+# Optional longer check: bash scripts/ci/smoke.sh

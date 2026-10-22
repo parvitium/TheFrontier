@@ -1,6 +1,8 @@
 class_name Hitscan
 extends RefCounted
 
+## World + mobs + buildings. Buildings block the ray but Session refuses
+## player damage to friendly structures.
 const HOSTILE_MASK := 1 | 4 | 8
 
 
@@ -20,12 +22,10 @@ static func fire(space: World3D, origin: Vector3, direction: Vector3, distance: 
 	return {hit = true, position = hit.position, collider = hit.collider, dir = dir}
 
 
-static func _apply_damage(collider: Object, damage: float, source: Node) -> void:
+static func _apply_damage(collider: Object, damage: float, _source: Node) -> void:
 	if collider == null or not collider is Node:
 		return
-	var health := (collider as Node).get_node_or_null("Health") as Health
-	if health:
-		health.apply(damage, source)
+	Session.cmd_resolve_hit("player", collider, damage)
 
 
 static func _spread(dir: Vector3, degrees: float) -> Vector3:

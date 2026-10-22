@@ -42,7 +42,7 @@ func _ready() -> void:
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	box.add_child(quit)
 	var help := Label.new()
-	help.text = "WASD move · mouse look · Shift sprint · Space jump · LMB fire · R reload · 1/2 weapons · B build · E gather · Esc pause"
+	help.text = "WASD move · mouse look · Shift sprint · Space jump · LMB fire · R reload · 1/2 weapons · B build · wheel or 3–7 cycle · LMB place · X/RMB dismantle · E gather/relic · Esc pause"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.add_theme_font_size_override("font_size", 13)
 	ThemeUtil.font_color(help, Color(0.55, 0.6, 0.62))

@@ -80,6 +80,7 @@ static func _endless() -> GameModeDef:
 	m.display_name = "Endless"
 	m.description = "No extraction. Waves scale forever. Chase a high score."
 	m.kind = GameModeDef.Kind.ENDLESS
+	m.relics_on_map = 6
 	m.starting_scrap = 50
 	m.starting_crystal = 20
 	m.rest_seconds = 18.0

@@ -2,7 +2,7 @@
 
 ## Vertical slice (this branch)
 
-Playable FPS + core defense loop with four data-driven modes, three mobs, four standard buildings plus the escape ship, two weapons, gatherable scrap/crystal, navmesh-aware walls, headless tests, and CI.
+Playable FPS + core defense loop with four data-driven modes, three mobs, four standard buildings plus the escape ship, two weapons, gatherable scrap/crystal, navmesh-aware walls with breach AI, Session-authored combat/ammo/building HP, headless tests, and CI.
 
 ## Next
 
@@ -32,10 +32,10 @@ Playable FPS + core defense loop with four data-driven modes, three mobs, four s
 
 ### Multiplayer (later)
 
-- Promote `Session` to a host-only authority.
+- Promote `Session` to a host-only authority (economy, combat resolution, building HP, and ammo already live there).
 - Replicate `GameState` snapshots + `GameBus` events.
 - Send intents: move, look, fire, reload, gather, place, dismantle.
-- Keep catalogs and `WinEvaluator` shared and deterministic.
+- Keep catalogs, `WinEvaluator`, and `BreachRules` shared and deterministic.
 - Delay any Steam/EOS work until the single-player loop is fun.
 
 ### Production
@@ -43,4 +43,4 @@ Playable FPS + core defense loop with four data-driven modes, three mobs, four s
 - Export presets (Windows / Linux).
 - Options menu (mouse sens, FOV, volume).
 - Save hot-path settings only; runs can stay ephemeral.
-- Broader CI: GDScript lint (`godot --headless --script` parse) and a longer arena smoke that starts Survive and ticks past the first rest.
+- Broader CI: GDScript lint (`godot --headless --script` parse).

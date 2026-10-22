@@ -27,6 +27,13 @@ var next_building_serial: int = 1
 var relics_collected: int = 0
 var escape_ship_built: bool = false
 var buildings_destroyed: int = 0
+var building_hp: Dictionary = {}
+var building_max_hp: Dictionary = {}
+var turret_cooldown: Dictionary = {}
+var weapons: Array = []
+var selected_weapon: int = 0
+var fire_cooldown: float = 0.0
+var reload_remaining: float = 0.0
 
 
 func begin(mode: GameModeDef) -> void:
@@ -57,6 +64,19 @@ func begin(mode: GameModeDef) -> void:
 	relics_collected = 0
 	escape_ship_built = false
 	buildings_destroyed = 0
+	building_hp.clear()
+	building_max_hp.clear()
+	turret_cooldown.clear()
+	weapons.clear()
+	for def in WeaponCatalog.all():
+		weapons.append({
+			"id": def.id,
+			"mag": def.magazine_size,
+			"reserve": def.reserve,
+		})
+	selected_weapon = 0
+	fire_cooldown = 0.0
+	reload_remaining = 0.0
 
 
 func is_running() -> bool:

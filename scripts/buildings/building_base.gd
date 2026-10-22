@@ -6,6 +6,14 @@ var serial: int = -1
 var grid_origin: Vector2i = Vector2i.ZERO
 
 
+static func footprint_collider_size(footprint: Vector2i) -> Vector3:
+	return Vector3(
+		float(footprint.x) * PlacementRules.CELL_SIZE,
+		1.8,
+		float(footprint.y) * PlacementRules.CELL_SIZE
+	)
+
+
 func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	building_id = def.id
 	serial = p_serial
@@ -16,7 +24,7 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	add_to_group("damageable")
 	collision_layer = 8
 	collision_mask = 0
-	var size := Vector3(float(def.footprint.x) * 1.7, 1.8, float(def.footprint.y) * 1.7)
+	var size := footprint_collider_size(def.footprint)
 	position = PlacementRules.cell_to_world(origin, 0.0) + Vector3((def.footprint.x - 1) * PlacementRules.CELL_SIZE * 0.5, 0, (def.footprint.y - 1) * PlacementRules.CELL_SIZE * 0.5)
 	var visual := Node3D.new()
 	visual.name = "Visual"
@@ -32,8 +40,10 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	var health := Health.new()
 	health.name = "Health"
 	health.configure(def.max_health, "building")
-	health.died.connect(_on_died)
 	add_child(health)
+	GameBus.building_health_changed.connect(_sync_health)
+	GameBus.building_destroyed.connect(_on_session_destroyed)
+	_sync_health(serial, float(Session.state.building_hp.get(serial, def.max_health)), def.max_health)
 
 
 func _build_visual(visual: Node3D, def: BuildingDef, size: Vector3) -> void:
@@ -46,6 +56,16 @@ func dismantle() -> void:
 	queue_free()
 
 
-func _on_died(_source: Node) -> void:
-	Session.cmd_building_destroyed(serial)
-	queue_free()
+func _sync_health(p_serial: int, current: float, maximum: float) -> void:
+	if p_serial != serial:
+		return
+	var health := get_node_or_null("Health") as Health
+	if health:
+		health.max_health = maximum
+		health.current = current
+		health.dead = current <= 0.0
+
+
+func _on_session_destroyed(_building_id: String, p_serial: int = -1) -> void:
+	if p_serial == serial:
+		queue_free()

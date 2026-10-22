@@ -29,6 +29,4 @@ func _physics_process(delta: float) -> void:
 	for body in _area.get_overlapping_bodies():
 		if body.is_in_group("mobs") and body.has_method("apply_slow"):
 			body.apply_slow(SLOW, 0.35)
-			var health := body.get_node_or_null("Health") as Health
-			if health:
-				health.apply(DPS * delta, self)
+			Session.cmd_trap_pulse(serial, body, delta, DPS)

@@ -49,11 +49,10 @@ func gather(delta: float) -> int:
 
 
 func restock() -> void:
-	if remaining <= 0:
-		remaining = respawn_amount
-		_progress = 0.0
-		_update_visual()
-		visible = true
+	remaining = respawn_amount
+	_progress = 0.0
+	_update_visual()
+	visible = true
 
 
 func _update_visual() -> void:

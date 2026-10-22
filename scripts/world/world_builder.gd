@@ -100,7 +100,7 @@ static func _resources(arena: Node3D) -> void:
 
 
 static func _relics(arena: Node3D) -> void:
-	if Session.mode.kind != GameModeDef.Kind.GATHER:
+	if Session.mode.relics_on_map <= 0:
 		return
 	var spots := [
 		Vector3(26, 0, 18), Vector3(-24, 0, 20), Vector3(22, 0, -24),
