@@ -25,8 +25,7 @@ func _ready() -> void:
 	var title := Label.new()
 	title.text = "PAUSED"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	ThemeUtil.font_color(title, Color(0.9, 0.95, 0.92))
+	ThemeUtil.readable_font(title, Color(0.9, 0.95, 0.92), 28)
 	box.add_child(title)
 	_btn(box, "Resume", _resume)
 	_btn(box, "Settings", _settings)

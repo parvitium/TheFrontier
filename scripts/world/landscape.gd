@@ -5,7 +5,7 @@ extends RefCounted
 
 const WORLD_SIZE := 520.0
 const PLAY_RADIUS := 38.0
-const GRID := 84
+const GRID := 110
 const MAP_COLLISION := 72.0
 
 
@@ -15,14 +15,10 @@ static func height_at(x: float, z: float) -> float:
 	var n2 := _vnoise(x + 40.0, z - 19.0, 0.07)
 	var n3 := _vnoise(x * 0.45, z * 0.45, 0.016)
 	var ridge := absf(n2 * 2.0 - 1.0)
-	var wash := 0.0
-	for i in 6:
-		var ang := float(i) * 0.95 + 0.35
-		var d := absf(x * sin(ang) - z * cos(ang))
-		var along := x * cos(ang) + z * sin(ang)
-		if along > -8.0:
-			wash += exp(-d * d / 22.0) * 0.42 * smoothstep(-8.0, 18.0, along)
-	var basin := (n1 - 0.5) * 0.18 - wash * 0.34
+	var carved := _carved_relief(x, z)
+	var pad := 1.0 - _smooth(5.8, 10.5, r)
+	var basin := (n1 - 0.5) * 0.1 + carved
+	basin *= 1.0 - pad * 0.94
 	var edge := _smooth(PLAY_RADIUS - 2.0, PLAY_RADIUS + 16.0, r)
 	var dunes := (n1 * 0.45 + ridge * 1.15 + n3 * 1.6) * edge
 	var rise := _smooth(PLAY_RADIUS, 95.0, r) * 4.2 + _smooth(95.0, 190.0, r) * 9.5
@@ -33,6 +29,26 @@ static func height_at(x: float, z: float) -> float:
 	return basin * (1.0 - edge) + rise + dunes * 2.4 + mesa + rim
 
 
+static func _carved_relief(x: float, z: float) -> float:
+	# Dry riverbed west of the core, a second wash east, dune ridges, channel banks.
+	var h := 0.0
+	var river_x := -12.2 + 2.8 * sin(z * 0.09 + 0.4)
+	var d0 := absf(x - river_x)
+	var run0 := 1.0 - _smooth(32.0, 44.0, absf(z))
+	h += (exp(-pow(d0 - 5.8, 2.0) / 8.5) * 1.08 - exp(-d0 * d0 / 22.0) * 0.72) * run0
+	var river_b := 15.8 + 2.0 * sin(z * 0.07)
+	var d1 := absf(x - river_b)
+	var run1 := 1.0 - _smooth(28.0, 40.0, absf(z))
+	h += (exp(-pow(d1 - 5.0, 2.0) / 7.0) * 0.82 - exp(-d1 * d1 / 16.0) * 0.46) * run1
+	var d2 := absf(z + 14.0)
+	h += exp(-pow(d2 - 6.2, 2.0) / 9.0) * 0.95
+	h -= exp(-d2 * d2 / 22.0) * 0.32 * (1.0 - exp(-pow((x - 3.0) / 18.0, 2.0)))
+	h += 0.7 * exp(-pow((z + 21.0) / 8.2, 2.0)) * (0.55 + 0.45 * absf(x) / 16.0)
+	h += 0.48 * exp(-pow((x + 20.0) / 7.5, 2.0)) * (1.0 - 0.35 * exp(-pow(z / 18.0, 2.0)))
+	h += (_vnoise(x + 9.0, z - 4.0, 0.055) - 0.5) * 0.16
+	return h
+
+
 static func build(root: Node3D, with_collision: bool = true) -> void:
 	var holder := Node3D.new()
 	holder.name = "Landscape"
@@ -41,7 +57,6 @@ static func build(root: Node3D, with_collision: bool = true) -> void:
 	if with_collision:
 		_playfield_collision(holder)
 	_buttes(holder)
-	_banks(holder)
 	_dressing(holder)
 	_cover_rocks(holder)
 	_horizon_scrub(holder)
@@ -177,35 +192,6 @@ static func _butte(parent: Node3D, pos: Vector3, radius: float, height: float, s
 	_dust_skirt(parent, Vector3(pos.x, y0 + 0.04, pos.z), radius * 1.5, height * 0.2)
 
 
-static func _banks(parent: Node3D) -> void:
-	var specs: Array[Vector4] = [
-		Vector4(22, 2.4, -28, 10),
-		Vector4(-26, 2.1, -18, 9),
-		Vector4(30, 2.8, 12, 11),
-		Vector4(-18, 2.2, 26, 8),
-		Vector4(8, 3.2, -36, 12),
-		Vector4(-34, 2.6, 6, 10),
-		Vector4(36, 3.6, -8, 13),
-		Vector4(-12, 2.0, -32, 9),
-	]
-	for i in specs.size():
-		var s: Vector4 = specs[i]
-		var y0 := height_at(s.x, s.z)
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 440 + i * 9
-		for k in 4:
-			var inst := VisualKit.instance(["rock_a", "rock_b", "rock_c"][(i + k) % 3])
-			if inst == null:
-				continue
-			var ox := rng.randf_range(-s.w * 0.35, s.w * 0.35)
-			var oz := rng.randf_range(-2.2, 2.2)
-			inst.scale = Vector3(rng.randf_range(1.1, 1.8), rng.randf_range(0.9, 1.6), rng.randf_range(1.2, 2.0))
-			inst.rotation = Vector3(rng.randf_range(-0.2, 0.2), rng.randf() * TAU, rng.randf_range(-0.12, 0.12))
-			inst.position = Vector3(s.x + ox, y0 - 0.2, s.z + oz)
-			parent.add_child(inst)
-		_dust_skirt(parent, Vector3(s.x, y0 + 0.03, s.z), s.w * 0.7, s.y)
-
-
 static func _dressing(parent: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1103
@@ -278,7 +264,7 @@ static func _decals(parent: Node3D, rng: RandomNumberGenerator) -> void:
 		patch.position = Vector3(x, y + 0.03, z)
 		patch.rotate_y(rng.randf() * TAU)
 		patch.scale = Vector3(1.0, 1.0, rng.randf_range(0.55, 1.15))
-		patch.material_override = PbrLibrary.dust() if i % 3 else PbrLibrary.dirt(Color(0.72, 0.56, 0.4))
+		patch.material_override = PbrLibrary.dust() if i % 3 else PbrLibrary.sand(Color(0.78, 0.52, 0.3))
 		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		parent.add_child(patch)
 

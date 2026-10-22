@@ -33,7 +33,8 @@ static func sand(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
 
 
 static func dirt(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
-	return _pbr("dirt", DIRT_DIR, tint, 0.0, 1.05, false, 0.14)
+	# Packed desert earth: same sand set, warmer/darker tint. Cool mud is unused.
+	return sand(Color(0.86, 0.58, 0.32) * tint)
 
 
 static func polymer(tint: Color = Color(0.14, 0.145, 0.15)) -> StandardMaterial3D:
@@ -101,17 +102,18 @@ static func emissive(color: Color, energy: float = 4.0) -> StandardMaterial3D:
 
 
 static func glass(color: Color = Color(0.35, 0.7, 0.9, 0.35)) -> StandardMaterial3D:
-	if _cache.has("glass"):
-		return _cache["glass"]
+	var key := "glass_%s" % color.to_html(true)
+	if _cache.has(key):
+		return _cache[key]
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.albedo_color = color
-	mat.metallic = 0.1
+	mat.metallic = 0.12
 	mat.roughness = 0.08
-	mat.emission_enabled = true
-	mat.emission = Color(0.25, 0.65, 0.9)
-	mat.emission_energy_multiplier = 0.6
-	_cache["glass"] = mat
+	mat.emission_enabled = color.a > 0.2 and color.b > 0.4
+	mat.emission = Color(color.r, color.g, color.b)
+	mat.emission_energy_multiplier = 0.45 if mat.emission_enabled else 0.0
+	_cache[key] = mat
 	return mat
 
 
@@ -132,10 +134,13 @@ static func terrain() -> ShaderMaterial:
 	if ResourceLoader.exists(TERRAIN_SHADER):
 		mat.shader = load(TERRAIN_SHADER)
 		_bind_tri(mat, "sand", SAND_DIR)
-		_bind_tri(mat, "dirt", DIRT_DIR)
+		_bind_tri(mat, "dirt", SAND_DIR)
 		_bind_tri(mat, "rock", ROCK_DIR)
 		mat.set_shader_parameter("uv_scale", 0.075)
 		mat.set_shader_parameter("rock_slope", 0.36)
+		mat.set_shader_parameter("sand_tint", Vector3(1.1, 0.88, 0.62))
+		mat.set_shader_parameter("dirt_tint", Vector3(0.98, 0.68, 0.38))
+		mat.set_shader_parameter("rock_tint", Vector3(0.9, 0.72, 0.52))
 	_cache["terrain"] = mat
 	return mat
 
@@ -154,8 +159,10 @@ static func by_kit_name(name: String) -> Material:
 		return rust()
 	if "concrete" in n:
 		return concrete()
-	if "rock" in n or "sand" in n:
-		return rock() if "rock" in n else sand()
+	if "sand" in n:
+		return sand(Color(0.82, 0.6, 0.38))
+	if "rock" in n:
+		return rock()
 	if "flesh" in n:
 		return flesh(Color(0.55, 0.16, 0.12))
 	if "shell" in n:

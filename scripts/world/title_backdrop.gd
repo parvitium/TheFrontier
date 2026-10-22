@@ -28,16 +28,21 @@ static func _outpost(root: Node3D) -> void:
 	light.position = Vector3(0, 3.2, 0)
 	root.add_child(light)
 	var wall_spots := [
-		Vector3(4, 0, 4), Vector3(-4, 0, 4), Vector3(4, 0, -4), Vector3(-4, 0, -4),
-		Vector3(6, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 6), Vector3(0, 0, -6),
-		Vector3(8, 0, 2), Vector3(-8, 0, -2),
+		Vector3(4.2, 0, 4.6), Vector3(-4.6, 0, 3.8), Vector3(5.1, 0, -3.6), Vector3(-3.8, 0, -5.0),
+		Vector3(7.2, 0, 0.6), Vector3(-7.0, 0, -0.8), Vector3(1.2, 0, 7.4), Vector3(-0.8, 0, -7.2),
+		Vector3(9.4, 0, 2.8), Vector3(-9.0, 0, -2.4),
 	]
 	for i in wall_spots.size():
 		var wall := VisualKit.instance("building_wall")
 		if wall:
 			wall.position = wall_spots[i]
-			wall.rotate_y(float(i) * 0.4)
+			wall.rotate_y(float(i) * 0.55 + 0.15)
 			root.add_child(wall)
+	KitFactory.span_cable(root, wall_spots[0] + Vector3(0, 2.4, 0), wall_spots[4] + Vector3(0, 2.7, 0), "SpanCableA", 0.03)
+	KitFactory.span_cable(root, wall_spots[1] + Vector3(0, 2.2, 0), wall_spots[5] + Vector3(0, 2.5, 0), "SpanCableB", 0.028)
+	KitFactory.span_cable(root, wall_spots[2] + Vector3(0, 2.6, 0), wall_spots[8] + Vector3(0, 2.9, 0), "SpanCableC", 0.026)
+	KitFactory.sandbag_stack(root, Vector3(2.4, 0.0, 5.2), 0.4, 6, 77)
+	KitFactory.sandbag_stack(root, Vector3(-5.4, 0.0, 2.2), -0.6, 5, 88)
 	var tank_spots := [Vector3(11, 0, -6), Vector3(-13, 0, 5), Vector3(14, 0, 9)]
 	for p in tank_spots:
 		var tank := VisualKit.instance("storage_tank")

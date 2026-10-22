@@ -116,11 +116,13 @@ func _prepare_viewmodel(root: Node) -> void:
 			src = mi.get_active_material(0)
 		var mat_name: String = src.resource_name if src else mi.name
 		var n: String = mat_name.to_lower() + " " + mi.name.to_lower()
-		if "emissive" in n or "optic" in n:
+		if "lens" in n or "glass" in n:
+			mi.material_override = PbrLibrary.glass(Color(0.12, 0.18, 0.16, 0.55))
+		elif "emissive" in n:
 			mi.material_override = PbrLibrary.emissive(Color(0.35, 0.9, 1.0), 0.9)
-		elif "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n:
+		elif "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n or "cheek" in n:
 			mi.material_override = PbrLibrary.polymer()
-		elif "dark" in n or "mag" in n or "sight" in n:
-			mi.material_override = PbrLibrary.metal(Color(0.22, 0.23, 0.24), 0.7, 0.8, false)
+		elif "dark" in n or "mag" in n or "sight" in n or "optic" in n or "rail" in n or "brake" in n:
+			mi.material_override = PbrLibrary.metal(Color(0.18, 0.19, 0.2), 0.74, 0.72, false)
 		else:
-			mi.material_override = PbrLibrary.metal(Color(0.58, 0.6, 0.62), 0.82, 0.7, false)
+			mi.material_override = PbrLibrary.metal(Color(0.5, 0.52, 0.54), 0.84, 0.62, false)

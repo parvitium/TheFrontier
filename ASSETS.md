@@ -12,8 +12,8 @@ Downloaded as 1k/2k JPG albedo, OpenGL normal, roughness, AO, and metal where th
 | rusty_metal_02 | Rusted steel, scrap | https://polyhaven.com/a/rusty_metal_02 |
 | concrete_floor_02 | Walls, pads, plinths | https://polyhaven.com/a/concrete_floor_02 |
 | rock_face | Cliffs, cover rock | https://polyhaven.com/a/rock_face |
-| sand_01 | Basin sand blend | https://polyhaven.com/a/sand_01 |
-| brown_mud_03 | Packed dirt blend | https://polyhaven.com/a/brown_mud_03 |
+| sand_01 | Basin sand and packed-earth blend (one warm palette) | https://polyhaven.com/a/sand_01 |
+| brown_mud_03 | Unused in the playfield (kept for audit; cool mud clashed with the desert) | https://polyhaven.com/a/brown_mud_03 |
 
 Authors are credited on each Poly Haven asset page. CC0 does not require attribution; they are listed so the source is auditable.
 

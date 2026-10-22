@@ -3,6 +3,8 @@ extends RefCounted
 
 ## Runtime sci-fi / badlands kit. Named nodes keep VisualKit / combat hooks working.
 
+static var _wall_seq: int = 0
+
 
 static func build(slot: String) -> Node3D:
 	match slot:
@@ -100,43 +102,96 @@ static func _core() -> Node3D:
 
 
 static func _wall() -> Node3D:
+	var variant := _wall_seq % 4
+	_wall_seq += 1
+	var hull_h: float = [1.55, 2.45, 1.22, 1.92][variant]
 	var root := Node3D.new()
 	root.name = "wall"
-	_box(root, "Plinth", Vector3(2.16, 0.28, 2.16), Vector3(0, 0.12, 0), "Concrete")
-	_box(root, "PlinthLip", Vector3(2.22, 0.06, 2.22), Vector3(0, 0.27, 0), "Metal")
-	_box(root, "Hull", Vector3(1.78, 1.78, 1.78), Vector3(0, 1.18, 0), "Concrete")
-	_box(root, "Cap", Vector3(2.08, 0.16, 2.08), Vector3(0, 2.18, 0), "Metal")
-	_box(root, "CapLip", Vector3(2.18, 0.06, 2.18), Vector3(0, 2.28, 0), "DarkMetal")
-	_box(root, "RoofVent", Vector3(0.42, 0.22, 0.42), Vector3(0.35, 2.38, 0.25), "DarkMetal")
-	_box(root, "RoofRail", Vector3(1.4, 0.08, 0.08), Vector3(0.0, 2.36, -0.7), "Metal")
-	_box(root, "RoofPipe", Vector3(0.1, 0.45, 0.1), Vector3(-0.45, 2.48, 0.4), "Rust")
-	# Four faces: dark frame + two inset plates so seams read from 20 m.
+	_box(root, "Plinth", Vector3(2.2, 0.26, 2.2), Vector3(0, 0.1, 0), "Concrete")
+	_box(root, "PlinthLip", Vector3(2.28, 0.05, 2.28), Vector3(0, 0.24, 0), "Metal")
+	_box(root, "Hull", Vector3(1.72, hull_h, 1.72), Vector3(0, 0.26 + hull_h * 0.5, 0), "Concrete")
+	var mid_y := 0.26 + hull_h * 0.5
+	var top_y := 0.26 + hull_h
 	var faces: Array[Vector3] = [
-		Vector3(0, 1.18, 0.92), Vector3(0, 0, 0),
-		Vector3(0, 1.18, -0.92), Vector3(0, PI, 0),
-		Vector3(0.92, 1.18, 0), Vector3(0, -PI * 0.5, 0),
-		Vector3(-0.92, 1.18, 0), Vector3(0, PI * 0.5, 0),
+		Vector3(0, mid_y, 0.9), Vector3(0, 0, 0),
+		Vector3(0, mid_y, -0.9), Vector3(0, PI, 0),
+		Vector3(0.9, mid_y, 0), Vector3(0, -PI * 0.5, 0),
+		Vector3(-0.9, mid_y, 0), Vector3(0, PI * 0.5, 0),
 	]
 	for i in 4:
 		var pos: Vector3 = faces[i * 2]
 		var rot: Vector3 = faces[i * 2 + 1]
-		_box(root, "Frame%d" % i, Vector3(1.72, 1.62, 0.1), pos, "DarkMetal", rot)
-		_box(root, "PanelA%d" % i, Vector3(0.72, 1.28, 0.08), pos + Vector3(-0.4, 0.02, 0.04).rotated(Vector3.UP, rot.y), "PaintedMetal", rot)
-		_box(root, "PanelB%d" % i, Vector3(0.72, 1.28, 0.08), pos + Vector3(0.4, 0.02, 0.04).rotated(Vector3.UP, rot.y), "PaintedMetal", rot)
-		_box(root, "Wear%d" % i, Vector3(0.62, 0.42, 0.07), pos + Vector3(0.42 if i % 2 == 0 else -0.38, -0.52, 0.05).rotated(Vector3.UP, rot.y), "Rust", rot)
+		_box(root, "Frame%d" % i, Vector3(1.62, hull_h * 0.92, 0.08), pos, "DarkMetal", rot)
+		_box(root, "PanelA%d" % i, Vector3(0.68, hull_h * 0.72, 0.07), pos + Vector3(-0.38, 0.02, 0.04).rotated(Vector3.UP, rot.y), "PaintedMetal", rot)
+		_box(root, "PanelB%d" % i, Vector3(0.68, hull_h * 0.72, 0.07), pos + Vector3(0.38, 0.02, 0.04).rotated(Vector3.UP, rot.y), "PaintedMetal", rot)
+		_box(root, "Wear%d" % i, Vector3(0.55, 0.32, 0.06), pos + Vector3(0.4 if i % 2 == 0 else -0.36, -hull_h * 0.28, 0.05).rotated(Vector3.UP, rot.y), "Rust", rot)
 	for i in 4:
 		var a := float(i) * PI * 0.5 + PI * 0.25
-		_box(root, "Trim%d" % i, Vector3(0.16, 2.05, 0.16), Vector3(cos(a) * 1.0, 1.16, sin(a) * 1.0), "Metal")
-	_box(root, "Vent", Vector3(0.78, 0.48, 0.1), Vector3(0, 1.55, 1.0), "DarkMetal")
-	for i in 4:
-		_box(root, "Slat%d" % i, Vector3(0.68, 0.04, 0.04), Vector3(0, 1.38 + float(i) * 0.09, 1.06), "Metal")
-	_box(root, "LiteL", Vector3(0.4, 0.09, 0.09), Vector3(-0.52, 2.02, 1.02), "EmissiveCyan")
-	_box(root, "LiteR", Vector3(0.4, 0.09, 0.09), Vector3(0.52, 2.02, 1.02), "EmissiveCyan")
-	for i in 8:
-		var x := -0.7 + float(i % 4) * 0.46
-		var y := 0.55 + float(i / 4) * 1.15
-		_cyl(root, "Bolt%d" % i, 0.04, 0.08, Vector3(x, y, 1.04), "Metal", 6, Vector3(PI * 0.5, 0, 0))
+		_box(root, "Trim%d" % i, Vector3(0.14, hull_h + 0.18, 0.14), Vector3(cos(a) * 0.98, mid_y, sin(a) * 0.98), "Metal")
+		_box(root, "Brace%d" % i, Vector3(0.1, hull_h * 0.72, 0.1), Vector3(cos(a) * 1.12, 0.55, sin(a) * 1.12), "Metal", Vector3(0.0, a, 0.42 if i % 2 == 0 else -0.42))
+	if variant == 1 or variant == 3:
+		_box(root, "Roof", Vector3(2.15, 0.08, 2.35), Vector3(0.0, top_y + 0.28, 0.12), "Metal", Vector3(0.32, 0.0, 0.0))
+		_box(root, "RoofUnder", Vector3(2.0, 0.06, 2.05), Vector3(0.0, top_y + 0.08, 0.0), "DarkMetal")
+	else:
+		_box(root, "Roof", Vector3(1.2, 0.1, 2.2), Vector3(-0.42, top_y + 0.38, 0.0), "Metal", Vector3(0.0, 0.0, 0.48))
+		_box(root, "RoofB", Vector3(1.2, 0.1, 2.2), Vector3(0.42, top_y + 0.38, 0.0), "Metal", Vector3(0.0, 0.0, -0.48))
+		_box(root, "Ridge", Vector3(0.12, 0.1, 2.22), Vector3(0.0, top_y + 0.62, 0.0), "DarkMetal")
+	_box(root, "RoofVent", Vector3(0.38, 0.2, 0.38), Vector3(0.35, top_y + 0.55, 0.2), "DarkMetal")
+	_box(root, "RoofPipe", Vector3(0.09, 0.55, 0.09), Vector3(-0.5, top_y + 0.62, 0.35), "Rust")
+	var ant_h: float = [0.85, 1.55, 0.55, 1.15][variant]
+	_cyl(root, "Antenna", 0.028, ant_h, Vector3(0.62, top_y + 0.55 + ant_h * 0.5, -0.45), "Metal", 6)
+	_cyl(root, "AntennaTip", 0.012, 0.16, Vector3(0.62, top_y + 0.55 + ant_h + 0.08, -0.45), "EmissiveAmber", 6)
+	_box(root, "AntennaArm", Vector3(0.42, 0.04, 0.04), Vector3(0.42, top_y + 0.85, -0.45), "DarkMetal")
+	sandbag_stack(root, Vector3(0.0, 0.12, 1.12), 0.0, 5 if variant == 2 else 3, 20 + variant)
+	if variant != 1:
+		sandbag_stack(root, Vector3(-1.05, 0.12, 0.35), PI * 0.5, 3, 40 + variant)
+	_box(root, "Vent", Vector3(0.7, 0.4, 0.08), Vector3(0, mid_y + hull_h * 0.18, 1.0), "DarkMetal")
+	for i in 3:
+		_box(root, "Slat%d" % i, Vector3(0.62, 0.035, 0.035), Vector3(0, mid_y + hull_h * 0.05 + float(i) * 0.09, 1.05), "Metal")
+	_box(root, "LiteL", Vector3(0.32, 0.07, 0.07), Vector3(-0.48, top_y - 0.12, 1.0), "EmissiveCyan")
+	_box(root, "LiteR", Vector3(0.32, 0.07, 0.07), Vector3(0.48, top_y - 0.12, 1.0), "EmissiveCyan")
+	span_cable(root, Vector3(-0.9, top_y + 0.15, 0.9), Vector3(-1.15, 0.18, 1.15), "Cable0", 0.018)
+	span_cable(root, Vector3(0.85, top_y + 0.2, -0.7), Vector3(1.2, 0.2, -1.05), "Cable1", 0.016)
 	return root
+
+
+static func sandbag_stack(parent: Node, origin: Vector3, yaw: float, count: int, seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	for i in count:
+		var col := i % 3
+		var row := i / 3
+		var local := Vector3(float(col - 1) * 0.42 + rng.randf_range(-0.04, 0.04), 0.1 + float(row) * 0.18, rng.randf_range(-0.04, 0.05))
+		var world := origin + local.rotated(Vector3.UP, yaw)
+		_box(parent, "Sandbag%d" % i, Vector3(0.5, 0.16, 0.28), world, "Sand", Vector3(0.0, yaw + rng.randf_range(-0.12, 0.12), rng.randf_range(-0.05, 0.05)))
+
+
+static func span_cable(parent: Node, a: Vector3, b: Vector3, name: String, radius: float = 0.022) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = name
+	var mesh := CylinderMesh.new()
+	var length := a.distance_to(b)
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = maxf(0.05, length)
+	mesh.radial_segments = 6
+	mesh.rings = 0
+	mi.mesh = mesh
+	mi.material_override = PbrLibrary.by_kit_name("Rust")
+	var mid := (a + b) * 0.5
+	var y := b - a
+	if y.length_squared() < 1e-6:
+		mi.position = mid
+		parent.add_child(mi)
+		return mi
+	var basis := Basis()
+	basis.y = y.normalized()
+	var helper := Vector3.RIGHT if absf(basis.y.dot(Vector3.UP)) > 0.92 else Vector3.UP
+	basis.x = helper.cross(basis.y).normalized()
+	basis.z = basis.x.cross(basis.y).normalized()
+	mi.transform = Transform3D(basis, mid)
+	parent.add_child(mi)
+	return mi
 
 
 static func _turret() -> Node3D:
@@ -220,25 +275,41 @@ static func _tank() -> Node3D:
 
 
 static func _rifle() -> Node3D:
-	# Camera-space rifle: barrel along -Z, stock +Z, sit lower-right in frame.
+	# Camera-space rifle: barrel along -Z, stock +Z. Sculpted DMR silhouette + glass LPVO.
 	var root := Node3D.new()
 	root.name = "pulse_rifle"
-	_box(root, "Stock", Vector3(0.052, 0.078, 0.17), Vector3(0.0, 0.012, 0.24), "Polymer")
-	_box(root, "StockPad", Vector3(0.058, 0.09, 0.032), Vector3(0.0, 0.012, 0.33), "Rubber")
-	_box(root, "Receiver", Vector3(0.062, 0.09, 0.2), Vector3(0.0, 0.028, 0.05), "Metal")
-	_box(root, "Rail", Vector3(0.028, 0.016, 0.18), Vector3(0.0, 0.082, 0.02), "DarkMetal")
-	_box(root, "Grip", Vector3(0.042, 0.12, 0.048), Vector3(0.0, -0.08, 0.09), "Polymer")
-	_box(root, "TriggerGuard", Vector3(0.032, 0.042, 0.055), Vector3(0.0, -0.042, 0.035), "DarkMetal")
-	_box(root, "Mag", Vector3(0.036, 0.14, 0.055), Vector3(0.0, -0.11, 0.0), "DarkMetal")
-	_box(root, "Handguard", Vector3(0.055, 0.058, 0.18), Vector3(0.0, 0.016, -0.15), "Polymer")
-	_cyl(root, "Barrel", 0.016, 0.3, Vector3(0.0, 0.024, -0.38), "Metal", 10, Vector3(-PI * 0.5, 0, 0))
-	_cyl(root, "MuzzleBrake", 0.02, 0.04, Vector3(0.0, 0.024, -0.54), "DarkMetal", 8, Vector3(-PI * 0.5, 0, 0))
-	_box(root, "RearSight", Vector3(0.018, 0.022, 0.018), Vector3(0.0, 0.09, 0.12), "DarkMetal")
-	_box(root, "FrontSight", Vector3(0.012, 0.026, 0.012), Vector3(0.0, 0.07, -0.3), "DarkMetal")
-	_cyl(root, "Optic", 0.012, 0.055, Vector3(0.0, 0.092, 0.02), "EmissiveCyan", 8, Vector3(-PI * 0.5, 0, 0))
+	_box(root, "Stock", Vector3(0.038, 0.072, 0.155), Vector3(0.0, 0.008, 0.255), "Polymer")
+	_box(root, "StockPad", Vector3(0.044, 0.086, 0.028), Vector3(0.0, 0.004, 0.338), "Rubber")
+	_box(root, "Cheek", Vector3(0.03, 0.028, 0.08), Vector3(0.0, 0.048, 0.23), "Polymer")
+	_cyl(root, "Buffer", 0.016, 0.07, Vector3(0.0, 0.03, 0.175), "DarkMetal", 10, Vector3(-PI * 0.5, 0, 0))
+	_box(root, "Receiver", Vector3(0.048, 0.058, 0.175), Vector3(0.0, 0.03, 0.055), "Metal")
+	_box(root, "Upper", Vector3(0.042, 0.028, 0.16), Vector3(0.0, 0.07, 0.04), "DarkMetal")
+	_box(root, "Ejection", Vector3(0.01, 0.018, 0.04), Vector3(0.026, 0.042, 0.05), "DarkMetal")
+	_box(root, "Rail", Vector3(0.022, 0.01, 0.2), Vector3(0.0, 0.086, -0.01), "DarkMetal")
+	_box(root, "Grip", Vector3(0.032, 0.105, 0.038), Vector3(0.0, -0.062, 0.095), "Polymer", Vector3(0.32, 0, 0))
+	_box(root, "TriggerGuard", Vector3(0.024, 0.032, 0.05), Vector3(0.0, -0.028, 0.04), "DarkMetal")
+	_box(root, "Trigger", Vector3(0.008, 0.022, 0.012), Vector3(0.0, -0.03, 0.028), "DarkMetal")
+	_box(root, "Magwell", Vector3(0.034, 0.03, 0.05), Vector3(0.0, -0.02, 0.0), "DarkMetal")
+	_box(root, "Mag", Vector3(0.03, 0.125, 0.048), Vector3(0.0, -0.1, -0.006), "DarkMetal", Vector3(0.12, 0, 0))
+	_box(root, "MagBase", Vector3(0.032, 0.016, 0.05), Vector3(0.0, -0.168, 0.008), "Polymer")
+	_cyl(root, "Handguard", 0.026, 0.175, Vector3(0.0, 0.028, -0.145), "Polymer", 12, Vector3(-PI * 0.5, 0, 0))
+	_box(root, "ForeRail", Vector3(0.018, 0.008, 0.14), Vector3(0.0, 0.056, -0.14), "DarkMetal")
+	_cyl_taper(root, "Barrel", 0.009, 0.014, 0.28, Vector3(0.0, 0.03, -0.38), "Metal", 12, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "GasBlock", 0.015, 0.028, Vector3(0.0, 0.03, -0.28), "DarkMetal", 8, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "MuzzleBrake", 0.013, 0.032, Vector3(0.0, 0.03, -0.535), "DarkMetal", 10, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "BrakeRing", 0.016, 0.01, Vector3(0.0, 0.03, -0.552), "Metal", 8, Vector3(-PI * 0.5, 0, 0))
+	_box(root, "OpticMount", Vector3(0.028, 0.016, 0.07), Vector3(0.0, 0.098, 0.02), "DarkMetal")
+	_box(root, "OpticRingF", Vector3(0.032, 0.028, 0.016), Vector3(0.0, 0.122, -0.018), "DarkMetal")
+	_box(root, "OpticRingR", Vector3(0.032, 0.028, 0.016), Vector3(0.0, 0.122, 0.055), "DarkMetal")
+	_cyl(root, "OpticTube", 0.014, 0.11, Vector3(0.0, 0.128, 0.018), "DarkMetal", 14, Vector3(-PI * 0.5, 0, 0))
+	_cyl_taper(root, "OpticBell", 0.02, 0.014, 0.032, Vector3(0.0, 0.128, -0.052), "DarkMetal", 14, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "OpticLens", 0.016, 0.008, Vector3(0.0, 0.128, -0.068), "Glass", 12, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "OpticEye", 0.015, 0.022, Vector3(0.0, 0.128, 0.08), "DarkMetal", 12, Vector3(-PI * 0.5, 0, 0))
+	_cyl(root, "OpticEyeLens", 0.011, 0.006, Vector3(0.0, 0.128, 0.094), "Glass", 10, Vector3(-PI * 0.5, 0, 0))
+	_box(root, "OpticKnob", Vector3(0.018, 0.014, 0.018), Vector3(0.0, 0.148, 0.02), "DarkMetal")
 	var muzzle := Marker3D.new()
 	muzzle.name = "Muzzle"
-	muzzle.position = Vector3(0.0, 0.024, -0.58)
+	muzzle.position = Vector3(0.0, 0.03, -0.57)
 	root.add_child(muzzle)
 	return root
 
@@ -331,11 +402,15 @@ static func _box(parent: Node, name: String, size: Vector3, pos: Vector3, mat: S
 
 
 static func _cyl(parent: Node, name: String, radius: float, height: float, pos: Vector3, mat: String, segs: int = 12, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
+	return _cyl_taper(parent, name, radius, radius, height, pos, mat, segs, rot)
+
+
+static func _cyl_taper(parent: Node, name: String, r_top: float, r_bot: float, height: float, pos: Vector3, mat: String, segs: int = 12, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = name
 	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
+	mesh.top_radius = r_top
+	mesh.bottom_radius = r_bot
 	mesh.height = height
 	mesh.radial_segments = segs
 	mesh.rings = 0

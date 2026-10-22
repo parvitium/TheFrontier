@@ -9,6 +9,8 @@ var _ammo: Label
 var _res: Label
 var _hint: Label
 var _banner: Label
+var _banner_plate: PanelContainer
+var _hint_plate: PanelContainer
 var _cross: ColorRect
 var _banner_time: float = 0.0
 
@@ -16,6 +18,7 @@ var _banner_time: float = 0.0
 func _ready() -> void:
 	layer = 10
 	var root := Control.new()
+	root.name = "HudRoot"
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -31,19 +34,54 @@ func _ready() -> void:
 	_hp = _label(root, Vector2(20, 96), 16, Color(0.85, 0.35, 0.32))
 	_res = _label(root, Vector2(20, 120), 16, Color(0.45, 0.85, 0.75))
 	_ammo = _label(root, Vector2(20, 144), 16, Color(0.8, 0.82, 0.7))
-	_hint = _label(root, Vector2(20, 640), 15, Color(0.78, 0.8, 0.72))
-	_hint.anchor_top = 1.0
-	_hint.anchor_bottom = 1.0
-	_hint.offset_top = -48
-	_hint.offset_bottom = -20
-	_banner = _label(root, Vector2(0, 80), 22, Color(0.95, 0.92, 0.7))
-	_banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_banner.offset_left = 80
-	_banner.offset_right = -80
-	_banner.offset_top = 86
+	_hint_plate = PanelContainer.new()
+	_hint_plate.name = "HintPlate"
+	_hint_plate.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_hint_plate.anchor_top = 1.0
+	_hint_plate.anchor_bottom = 1.0
+	_hint_plate.offset_left = 16
+	_hint_plate.offset_right = -16
+	_hint_plate.offset_top = -56
+	_hint_plate.offset_bottom = -16
+	_hint_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint_plate.add_theme_stylebox_override("panel", ThemeUtil.overlay_plate(Color(0.03, 0.035, 0.04, 0.78)))
+	root.add_child(_hint_plate)
+	_hint = Label.new()
+	_hint.name = "Hint"
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ThemeUtil.readable_font(_hint, Color(0.92, 0.9, 0.82), 15)
+	_hint_plate.add_child(_hint)
+	var banner_wrap := CenterContainer.new()
+	banner_wrap.name = "BannerWrap"
+	banner_wrap.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner_wrap.offset_left = 80
+	banner_wrap.offset_right = -80
+	banner_wrap.offset_top = 78
+	banner_wrap.offset_bottom = 138
+	banner_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(banner_wrap)
+	_banner_plate = PanelContainer.new()
+	_banner_plate.name = "BannerPlate"
+	_banner_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner_plate.add_theme_stylebox_override("panel", ThemeUtil.overlay_plate(Color(0.025, 0.03, 0.035, 0.84)))
+	banner_wrap.add_child(_banner_plate)
+	_banner = Label.new()
+	_banner.name = "Banner"
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ThemeUtil.readable_font(_banner, Color(0.98, 0.93, 0.72), 22)
+	_banner_plate.add_child(_banner)
+	var cross_shadow := ColorRect.new()
+	cross_shadow.color = Color(0.02, 0.02, 0.03, 0.7)
+	cross_shadow.custom_minimum_size = Vector2(8, 8)
+	cross_shadow.set_anchors_preset(Control.PRESET_CENTER)
+	cross_shadow.offset_left = -4
+	cross_shadow.offset_right = 4
+	cross_shadow.offset_top = -4
+	cross_shadow.offset_bottom = 4
+	cross_shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(cross_shadow)
 	_cross = ColorRect.new()
-	_cross.color = Color(0.9, 0.95, 0.9, 0.85)
+	_cross.color = Color(0.95, 0.96, 0.9, 0.92)
 	_cross.custom_minimum_size = Vector2(4, 4)
 	_cross.set_anchors_preset(Control.PRESET_CENTER)
 	_cross.offset_left = -2
@@ -57,7 +95,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_banner_time = max(0.0, _banner_time - delta)
-	_banner.visible = _banner_time > 0.0
+	var show_banner := _banner_time > 0.0 and _banner.text != ""
+	_banner_plate.visible = show_banner
 	var state := Session.state
 	var mode := Session.mode
 	var phase := "REST" if state.phase == GameState.Phase.REST else "WAVE"
@@ -85,6 +124,7 @@ func _process(delta: float) -> void:
 		_hint.text = player.interact_label()
 	else:
 		_hint.text = ""
+	_hint_plate.visible = _hint.text != ""
 
 
 func _objective_text(mode: GameModeDef, state: GameState) -> String:
@@ -103,12 +143,12 @@ func _objective_text(mode: GameModeDef, state: GameState) -> String:
 func _on_banner(text: String) -> void:
 	_banner.text = text
 	_banner_time = 3.2
+	_banner_plate.visible = text != ""
 
 
 func _label(parent: Control, pos: Vector2, size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.position = pos
-	label.add_theme_font_size_override("font_size", size)
-	ThemeUtil.font_color(label, color)
+	ThemeUtil.readable_font(label, color, size)
 	parent.add_child(label)
 	return label

@@ -12,9 +12,9 @@ uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap, repeat_enable
 uniform sampler2D rock_rough : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float uv_scale : hint_range(0.02, 1.0) = 0.085;
 uniform float rock_slope : hint_range(0.1, 1.0) = 0.38;
-uniform vec3 sand_tint = vec3(1.04, 0.9, 0.72);
-uniform vec3 dirt_tint = vec3(0.88, 0.74, 0.58);
-uniform vec3 rock_tint = vec3(0.86, 0.78, 0.68);
+uniform vec3 sand_tint = vec3(1.1, 0.88, 0.62);
+uniform vec3 dirt_tint = vec3(0.98, 0.68, 0.38);
+uniform vec3 rock_tint = vec3(0.9, 0.72, 0.52);
 
 varying vec3 world_pos;
 varying vec3 world_n;
@@ -78,19 +78,21 @@ void fragment() {
 	float radial = length(world_pos.xz);
 	float macro = fbm(world_pos.xz * 0.016);
 	float path = fbm(world_pos.xz * 0.045 + vec2(8.0, 3.0));
-	float wash = smoothstep(0.42, 0.7, path);
-	float sand_w = clamp((0.28 + 0.72 * smoothstep(8.0, 34.0, radial) + macro * 0.2) * (1.0 - rock_w), 0.0, 1.0);
-	float dirt_w = clamp(1.0 - rock_w - sand_w, 0.0, 1.0);
-	dirt_w = clamp(dirt_w + wash * 0.35 * (1.0 - rock_w), 0.0, 1.0);
+	float wash = smoothstep(0.48, 0.78, path);
+	float core_pad = 1.0 - smoothstep(6.0, 16.0, radial);
+	// Packed earth is the same sand family, just darker/warmer — no cool mud.
+	float packed = wash * 0.42 * (1.0 - rock_w) * (1.0 - core_pad * 0.85);
+	float sand_w = clamp(1.0 - rock_w - packed, 0.0, 1.0);
+	float dirt_w = clamp(packed, 0.0, 1.0);
 	sand_w = clamp(1.0 - rock_w - dirt_w, 0.0, 1.0);
 
 	vec3 sand = sample_dual(sand_albedo, world_pos, world_n, uv_scale) * sand_tint;
-	vec3 dirt = sample_dual(dirt_albedo, world_pos, world_n, uv_scale * 0.92) * dirt_tint;
+	vec3 dirt = sample_dual(dirt_albedo, world_pos, world_n, uv_scale * 0.72) * dirt_tint;
 	vec3 rock = sample_dual(rock_albedo, world_pos, world_n, uv_scale * 0.48) * rock_tint;
 
 	float blotch = smoothstep(0.32, 0.72, fbm(world_pos.xz * 0.028 + 12.0));
-	sand *= mix(vec3(1.06, 0.98, 0.86), vec3(0.62, 0.46, 0.32), blotch * 0.62);
-	dirt *= mix(vec3(1.0), vec3(0.62, 0.46, 0.32), (1.0 - blotch) * 0.4);
+	sand *= mix(vec3(1.1, 0.96, 0.78), vec3(0.86, 0.58, 0.32), blotch * 0.48);
+	dirt *= mix(vec3(1.08, 0.86, 0.55), vec3(0.78, 0.5, 0.26), blotch * 0.35);
 
 	float specks = step(0.93, vnoise(world_pos.xz * 0.42));
 	float crust = step(0.88, vnoise(world_pos.xz * 0.09 + 4.0));

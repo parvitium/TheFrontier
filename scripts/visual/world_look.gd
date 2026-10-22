@@ -19,8 +19,8 @@ static func attach(root: Node3D, cinematic: bool = false) -> Dictionary:
 	var fill := DirectionalLight3D.new()
 	fill.name = "Fill"
 	fill.rotation_degrees = Vector3(-48, -36, 0)
-	fill.light_color = Color(0.32, 0.42, 0.62)
-	fill.light_energy = 0.28
+	fill.light_color = Color(0.62, 0.42, 0.24)
+	fill.light_energy = 0.32
 	fill.shadow_enabled = false
 	root.add_child(fill)
 	var env_node := WorldEnvironment.new()
