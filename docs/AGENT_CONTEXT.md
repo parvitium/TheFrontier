@@ -18,7 +18,7 @@ Godot 4.7.2 GDScript prototype. Owner: Adam. First-person shooter plus core defe
 | `tests/run_tests.gd` | Headless Session + rules assertions |
 | `tests/smoke_arena.gd` | Headless arena boot for real seconds |
 
-Kit meshes are built by `KitFactory` (with `.glb` fallbacks) and instanced by `VisualKit` under each actor's `Visual` node (`asset_slot` metadata). `Landscape` generates one badlands heightfield to the horizon. PBR maps and the `qwantani_dusk_2_puresky` HDRI are applied in `PbrLibrary` / `WorldLook`. Greybox helpers in `scripts/world/greybox.gd` remain as fallbacks if a kit piece is missing.
+Kit meshes are built by `KitFactory` (with `.glb` fallbacks) and instanced by `VisualKit` under each actor's `Visual` node (`asset_slot` metadata). Walls are HESCO / T-wall / plate fortification. `Landscape` generates one badlands heightfield plus baked butte meshes. PBR maps and the `qwantani_dusk_2_puresky` HDRI are applied in `PbrLibrary` / `WorldLook`. Greybox helpers in `scripts/world/greybox.gd` remain as fallbacks if a kit piece is missing. Regenerating bakes: `godot --headless --path . --scene res://tools/bake_landscape.tscn`.
 
 ## State vs presentation
 

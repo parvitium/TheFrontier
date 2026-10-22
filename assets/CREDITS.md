@@ -31,11 +31,13 @@ Authors are credited on each Poly Haven asset page. CC0 does not require attribu
 
 Headless Blender 4.2 kitbash in `tools/blender_kit.py`, exported to `assets/models/*.glb`, plus runtime `KitFactory` kit:
 
-- core_engine, wall, turret, trap, repair_beacon, escape_ship, storage_tank
-- rock_a / rock_b / rock_c
+- core_engine, wall (HESCO / T-wall / welded plate), turret, trap, repair_beacon, escape_ship, storage_tank
+- rock_a / rock_b / rock_c, generated buttes (`assets/baked/butte_*.res`)
 - mob_rusher, mob_ranger, mob_tank (walk cycle)
 - pulse_rifle, scatter_cannon (Muzzle empties)
 - scrap, crystal, relic, title_emblem
+
+Baked landscape meshes: `godot --headless --path . --scene res://tools/bake_landscape.tscn` (see README).
 
 ## Original audio
 

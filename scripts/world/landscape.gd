@@ -133,6 +133,7 @@ static func warmup() -> void:
 	make_heightmap_shape()
 	for k in 3:
 		KitFactory.cover_boulder_mesh(k)
+		KitFactory.cover_butte_mesh(k)
 	KitFactory.pebble_mesh()
 	KitFactory.scrub_mesh()
 	KitFactory.load_baked_mesh("mesa_talus")
@@ -150,6 +151,7 @@ static func build(root: Node3D, with_collision: bool = true) -> void:
 	if with_collision:
 		_playfield_collision(holder)
 	var t_col := Time.get_ticks_msec()
+	_mesa_buttes(holder)
 	_mesa_debris(holder)
 	_dressing(holder)
 	_cover_rocks(holder)
@@ -288,13 +290,15 @@ static func bake_to_disk(dir: String = BAKED_DIR) -> void:
 	shape.map_data = data
 	_heightmap_cache = shape
 	print("BAKE heightmap err=", ResourceSaver.save(shape, "%s/heightmap.res" % dir))
+	KitFactory.clear_mesh_cache()
 	for k in 3:
-		var boulder := KitFactory.cover_boulder_mesh(k)
-		print("BAKE boulder ", k, " err=", ResourceSaver.save(boulder, "%s/boulder_%d.res" % [dir, k]))
-	print("BAKE pebble err=", ResourceSaver.save(KitFactory.pebble_mesh(), "%s/pebble.res" % dir))
+		print("BAKE boulder ", k, " err=", ResourceSaver.save(KitFactory.generate_cover_boulder_mesh(k), "%s/boulder_%d.res" % [dir, k]))
+	print("BAKE pebble err=", ResourceSaver.save(KitFactory.generate_pebble_mesh(), "%s/pebble.res" % dir))
 	print("BAKE scrub err=", ResourceSaver.save(KitFactory.scrub_mesh(), "%s/scrub.res" % dir))
 	print("BAKE mesa_talus err=", ResourceSaver.save(KitFactory.boulder_mesh(61, Vector3(1.0, 0.55, 1.0), 10, 7), "%s/mesa_talus.res" % dir))
 	print("BAKE horizon_boulder err=", ResourceSaver.save(KitFactory.boulder_mesh(77, Vector3(1.4, 0.7, 1.2), 8, 6), "%s/horizon_boulder.res" % dir))
+	for k in 3:
+		print("BAKE butte ", k, " err=", ResourceSaver.save(KitFactory.generate_cover_butte_mesh(k), "%s/butte_%d.res" % [dir, k]))
 
 
 static func _build_grid_array(size: float, quads: int, skip_inner: float) -> ArrayMesh:
@@ -388,6 +392,53 @@ const MESA_SPECS: Array[Vector4] = [
 	Vector4(18, 28, 214, 36),
 	Vector4(-220, 24, 140, 30),
 ]
+
+
+static func mesa_yaw(i: int) -> float:
+	return 0.18 if i == 0 else float(i) * 1.17 + 0.4
+
+
+static func mesa_aspect(i: int) -> float:
+	return 1.62 if i == 0 else 1.18 + 0.52 * _hash2(i * 3, 9)
+
+
+static func mesa_pexp(i: int) -> float:
+	return 4.6 if i == 0 else 3.4 + 2.2 * _hash2(i * 5, 11)
+
+
+static func _mesa_buttes(parent: Node3D) -> void:
+	var holder := Node3D.new()
+	holder.name = "MesaButtes"
+	parent.add_child(holder)
+	var proto: Array[Mesh] = [
+		KitFactory.cover_butte_mesh(0),
+		KitFactory.cover_butte_mesh(1),
+		KitFactory.cover_butte_mesh(2),
+	]
+	var grouped: Array = [[], [], []]
+	for i in MESA_SPECS.size():
+		var s: Vector4 = MESA_SPECS[i]
+		var kind: int = i % 3
+		var cap_y := height_at(s.x, s.z)
+		var sy := s.y * 1.04
+		var sx := s.w * 1.12
+		var sz := s.w * mesa_aspect(i) * 1.12
+		grouped[kind].append(_grounded_xf(proto[kind], s.x, cap_y - sy * 0.94, s.z, Vector3(sx, sy, sz), mesa_yaw(i)))
+	for k in 3:
+		var mm_i := MultiMeshInstance3D.new()
+		mm_i.name = "MesaButtes%d" % k
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = proto[k]
+		mm.instance_count = grouped[k].size()
+		mm_i.multimesh = mm
+		mm_i.material_override = PbrLibrary.terrain()
+		mm_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mm_i.visibility_range_end = 320.0
+		mm_i.visibility_range_end_margin = 40.0
+		holder.add_child(mm_i)
+		for j in grouped[k].size():
+			mm.set_instance_transform(j, grouped[k][j])
 
 
 static func _mesa_debris(parent: Node3D) -> void:
@@ -605,13 +656,9 @@ static func _horizon_impostors(parent: Node3D) -> void:
 	inst.name = "HorizonImpostors"
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.55
-	mesh.bottom_radius = 1.0
-	mesh.height = 1.0
-	mesh.radial_segments = 8
-	mesh.rings = 0
-	mm.mesh = mesh
+	mm.mesh = KitFactory.cover_butte_mesh(1)
+	if mm.mesh == null:
+		mm.mesh = KitFactory.butte_mesh(21, Vector3(1.0, 1.0, 0.78), 16, 10)
 	mm.instance_count = 8
 	inst.multimesh = mm
 	inst.material_override = PbrLibrary.terrain()
@@ -629,12 +676,10 @@ static func _horizon_impostors(parent: Node3D) -> void:
 		var x := cos(a) * r
 		var z := sin(a) * r
 		var y := height_at(x, z)
-		var w := rng.randf_range(14.0, 26.0)
-		var h := rng.randf_range(10.0, 18.0)
-		var xf := Transform3D()
-		xf = xf.scaled(Vector3(w, h, w * rng.randf_range(0.7, 1.15)))
-		xf.origin = Vector3(x, y + h * 0.35, z)
-		mm.set_instance_transform(i, xf)
+		var w := rng.randf_range(16.0, 28.0)
+		var h := rng.randf_range(12.0, 22.0)
+		var aspect := rng.randf_range(0.72, 1.35)
+		mm.set_instance_transform(i, _grounded_xf(mm.mesh, x, y - h * 0.12, z, Vector3(w, h, w * aspect), rng.randf() * TAU))
 
 
 static func _grounded_xf(mesh: Mesh, x: float, ground_y: float, z: float, scl: Vector3, yaw: float, extra: float = 0.0) -> Transform3D:
@@ -669,37 +714,47 @@ static func _mesa_field(x: float, z: float) -> float:
 	var n2 := _vnoise(x + 17.0, z - 9.0, 0.08)
 	var n3 := _vnoise(x * 0.6, z * 0.6, 0.055)
 	var n4 := _vnoise(x - 9.0, z + 13.0, 0.12)
-	for m in MESA_SPECS:
-		var dx := x - m.x + (n - 0.5) * m.w * 0.10
-		var dz := z - m.z + (n2 - 0.5) * m.w * 0.10
-		var ang := atan2(dz, dx)
-		var lobe := 0.14 * sin(ang * 3.0 + n * 5.1) + 0.08 * sin(ang * 5.0 - n2 * 3.4)
-		var md := sqrt(dx * dx + dz * dz)
-		var r_top := m.w * (0.40 + n * 0.05) * (1.0 + lobe)
-		var r_cliff := m.w * (0.49 + n2 * 0.03) * (1.0 + lobe * 0.55)
-		var r_talus := m.w * (1.28 + n2 * 0.08) * (1.0 + lobe * 0.25)
+	for i in MESA_SPECS.size():
+		var m: Vector4 = MESA_SPECS[i]
+		var yaw := mesa_yaw(i)
+		var aspect := mesa_aspect(i)
+		var pexp := mesa_pexp(i)
+		var dx := x - m.x
+		var dz := z - m.z
+		var ca := cos(yaw)
+		var sa := sin(yaw)
+		var lx := (ca * dx + sa * dz) / maxf(0.001, m.w)
+		var lz := (-sa * dx + ca * dz) / maxf(0.001, m.w * aspect)
+		var ang := atan2(lz, lx)
+		var lobe := 1.0 + 0.10 * sin(ang * 2.0 + n * 5.1) + 0.06 * sin(ang * 5.0 - n2 * 3.4)
+		var gully_dir := 1.0 - 0.16 * pow(maxf(0.0, cos(ang - float(i) * 0.7)), 6.0)
+		var md := pow(pow(absf(lx), pexp) + pow(absf(lz), pexp), 1.0 / pexp) / maxf(0.35, lobe * gully_dir)
+		var r_top := 0.36 + n * 0.02
+		var r_cliff := 0.50 + n2 * 0.02
+		var fan := pow(maxf(0.0, cos(ang - 0.9 - float(i))), 2.0)
+		var r_talus := 0.72 + 0.70 * fan + n2 * 0.06
 		var gully := pow(absf(n3 * 2.0 - 1.0), 1.45)
 		var cap := m.y * (0.92 + n * 0.08)
 		var land := 0.0
 		if md <= r_top:
 			var u := md / maxf(0.001, r_top)
-			var dish := u * u * 0.12
-			var caprock := 0.04 * (n4 - 0.5)
-			land = cap * (0.90 + caprock - gully * 0.22 - dish)
+			var dish := u * u * 0.10
+			var rim := smoothstep(0.72, 0.98, u) * 0.06
+			var caprock := 0.035 * (n4 - 0.5)
+			land = cap * (0.90 + caprock + rim - gully * 0.20 - dish)
 		elif md <= r_cliff:
 			var t := (md - r_top) / maxf(0.001, r_cliff - r_top)
-			# Steep caprock lip: most of the drop happens in the first meters of cliff.
-			var t_steep := 1.0 - pow(1.0 - t, 3.2)
-			var top_h := cap * (0.90 + n4 * 0.05 - gully * 0.18)
-			var foot_h := cap * 0.28
-			var face := n2 * 0.08 * sin(ang * 7.0)
+			var t_steep := 1.0 - pow(1.0 - t, 3.6)
+			var top_h := cap * (0.90 + n4 * 0.04 - gully * 0.16)
+			var foot_h := cap * 0.26
+			var face := 0.06 * n2 * sin(ang * 8.0)
 			land = lerpf(top_h, foot_h, t_steep) + face
 		elif md <= r_talus:
 			var t := (md - r_cliff) / maxf(0.001, r_talus - r_cliff)
-			var foot_h := cap * 0.28
+			var foot_h := cap * 0.26
 			var apron := 1.0 - t
-			var scree := 0.12 * n * sin(ang * 4.0 + n2)
-			land = foot_h * apron * apron * (0.88 + n2 * 0.16) + scree * apron
+			var scree := 0.10 * n * sin(ang * 4.0 + n2)
+			land = foot_h * apron * apron * (0.88 + n2 * 0.14) + scree * apron
 		h = maxf(h, land)
 	h += (n2 - 0.5) * 0.9 * _smooth(PLAY_RADIUS + 20.0, 80.0, sqrt(x * x + z * z))
 	return h

@@ -70,6 +70,14 @@ static func gun_metal(tint: Color = Color(0.42, 0.44, 0.46), metallic: float = 0
 	return oxidized(tint, metallic, roughness_mul, false)
 
 
+static func gun_steel(tint: Color = Color(0.50, 0.52, 0.54)) -> StandardMaterial3D:
+	return gun_metal(tint, 0.88, 0.58)
+
+
+static func gun_dark(tint: Color = Color(0.16, 0.165, 0.17)) -> StandardMaterial3D:
+	return gun_metal(tint, 0.86, 0.62)
+
+
 static func sand(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
 	return _pbr("sand", SAND_DIR, tint, 0.0, 1.1, false, 0.16)
 
@@ -209,6 +217,12 @@ static func by_kit_name(name: String) -> Material:
 		return flesh(Color(0.55, 0.16, 0.12))
 	if "shell" in n:
 		return oxidized(Color(0.62, 0.58, 0.52), 0.48, 1.08)
+	if "gunpolymer" in n:
+		return polymer(Color(0.12, 0.125, 0.13))
+	if "gunsteel" in n:
+		return gun_steel()
+	if "gundark" in n:
+		return gun_dark()
 	if "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n:
 		return polymer(Color(0.13, 0.135, 0.14) if "stock" in n or "grip" in n else Color(0.16, 0.165, 0.17))
 	if "tread" in n or "floor" in n or "step" in n or "grate" in n or "walk" in n or "ladder" in n or "plinthlip" in n or "padinset" in n:

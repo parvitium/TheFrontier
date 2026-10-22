@@ -112,13 +112,25 @@ vec4 sample_tri_stoch(sampler2D tex, vec3 p, vec3 n, float scale) {
 	return xaxis * blending.x + yaxis * blending.y + zaxis * blending.z;
 }
 
+vec2 sand_domain(vec3 p) {
+	float ang = (fbm(p.xz * 0.0064) - 0.5) * 3.4;
+	vec2 q = rot2(p.xz, ang);
+	q += vec2(fbm(p.xz * 0.012 + 2.0), fbm(p.xz * 0.012 + 19.0)) * 11.0;
+	return q;
+}
+
 vec3 sample_sand(sampler2D tex, vec3 p, vec3 n, float scale) {
-	vec3 detail = sample_tri_stoch(tex, p, n, scale).rgb;
-	vec3 meso = sample_tri_stoch(tex, p + vec3(7.0, 0.0, 3.0), n, scale * 0.31).rgb;
-	vec3 macro = sample_tri(tex, p + vec3(19.0, 0.0, 11.0), n, scale * 0.11).rgb;
-	float w_meso = 0.38 + 0.18 * fbm(p.xz * 0.011);
-	float w_macro = 0.28 + 0.16 * fbm(p.xz * 0.0048 + 5.0);
-	return mix(mix(detail, meso, w_meso), macro, w_macro);
+	vec2 d = sand_domain(p);
+	vec3 warped = vec3(d.x, p.y, d.y);
+	float s_jit = mix(0.78, 1.28, fbm(p.xz * 0.0036 + 8.0));
+	vec3 detail = sample_tri_stoch(tex, warped, n, scale * s_jit).rgb;
+	vec3 meso = sample_tri_stoch(tex, p + vec3(7.0, 0.0, 3.0), n, scale * 0.27).rgb;
+	vec3 macro = sample_tri(tex, p + vec3(19.0, 0.0, 11.0), n, scale * 0.08).rgb;
+	vec3 patch_a = sample_tri(tex, p + vec3(-13.0, 0.0, 21.0), n, scale * 0.045).rgb;
+	float w_meso = 0.34 + 0.20 * fbm(p.xz * 0.009);
+	float w_macro = 0.32 + 0.18 * fbm(p.xz * 0.0038 + 5.0);
+	float w_patch = 0.22 * fbm(p.xz * 0.0022 + 14.0);
+	return mix(mix(mix(detail, meso, w_meso), macro, w_macro), patch_a, w_patch);
 }
 
 void fragment() {
@@ -146,14 +158,19 @@ void fragment() {
 
 	float specks = step(0.93, vnoise(world_pos.xz * 0.42));
 	float crust = step(0.88, vnoise(world_pos.xz * 0.09 + 4.0));
+	float gravel = smoothstep(0.58, 0.82, fbm(world_pos.xz * 0.019 + 8.2));
+	float cobble = step(0.90, vnoise(world_pos.xz * 0.13 + 6.0));
+	float mid = smoothstep(14.0, 36.0, radial) * (1.0 - smoothstep(95.0, 160.0, radial));
 	vec3 albedo = sand * sand_w + dirt * dirt_w + rock * rock_w;
 	albedo = mix(albedo, rock * 0.82, specks * 0.45 * (1.0 - rock_w));
 	albedo = mix(albedo, sand * vec3(1.08, 0.96, 0.8), crust * 0.22 * (1.0 - rock_w));
+	albedo = mix(albedo, mix(rock * vec3(0.96, 0.78, 0.56), sand * vec3(0.86, 0.62, 0.38), 0.35), gravel * 0.55 * (1.0 - rock_w) * (0.45 + 0.55 * mid));
+	albedo = mix(albedo, rock * vec3(0.78, 0.58, 0.38), cobble * 0.62 * (1.0 - rock_w));
 
-	float band = fract(world_pos.y * 0.31 + fbm(world_pos.xz * 0.02) * 0.12);
-	float strata = smoothstep(0.0, 0.07, band) * (1.0 - smoothstep(0.16, 0.28, band));
-	albedo = mix(albedo, rock * vec3(1.14, 0.88, 0.64), strata * rock_w * 0.42);
-	albedo = mix(albedo, rock * vec3(0.72, 0.5, 0.34), strata * rock_w * 0.18 * step(0.5, band));
+	float band = fract(world_pos.y * 0.62 + fbm(world_pos.xz * 0.018) * 0.16);
+	float strata = smoothstep(0.0, 0.08, band) * (1.0 - smoothstep(0.18, 0.32, band));
+	albedo = mix(albedo, rock * vec3(1.16, 0.90, 0.64), strata * rock_w * 0.55);
+	albedo = mix(albedo, rock * vec3(0.68, 0.46, 0.30), strata * rock_w * 0.28 * step(0.5, band));
 
 	float dist = length(world_pos.xz);
 	float haze = smoothstep(haze_start, haze_end, dist);
@@ -169,15 +186,20 @@ void fragment() {
 	SPECULAR = mix(0.18, 0.04, haze);
 
 	vec3 ns = sample_tri_stoch(sand_normal, world_pos, world_n, uv_scale).rgb;
-	vec3 ns_fine = sample_tri_stoch(sand_normal, world_pos, world_n, uv_scale * 3.6).rgb;
-	float rip_x = sin(world_pos.x * 5.4 + world_pos.z * 1.15);
-	float rip_z = sin(world_pos.z * 4.8 - world_pos.x * 0.95);
-	vec3 nproc = vec3(rip_x * 0.5 + 0.5, rip_z * 0.5 + 0.5, 1.0);
-	ns = mix(mix(ns, ns_fine, 0.40), nproc, 0.16 * sand_w);
+	vec3 ns_fine = sample_tri_stoch(sand_normal, world_pos, world_n, uv_scale * 3.2).rgb;
+	vec2 d = sand_domain(world_pos);
+	float rip_freq = mix(2.4, 5.8, fbm(world_pos.xz * 0.015 + 2.0));
+	float rip = sin(d.x * rip_freq + fbm(world_pos.xz * 0.05) * 3.5);
+	float rip_b = sin(d.y * (rip_freq * 0.62) + 1.7);
+	float rip_w = 0.10 * sand_w * (1.0 - gravel) * (1.0 - mid * 0.35);
+	vec3 nproc = vec3(rip * 0.5 + 0.5, rip_b * 0.5 + 0.5, 1.0);
+	ns = mix(mix(ns, ns_fine, 0.38), nproc, rip_w);
 	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.92).rgb;
 	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.48).rgb;
-	vec3 nr_band = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.18).rgb;
-	nr = mix(nr, nr_band, strata * 0.42);
+	vec3 nr_band = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.16).rgb;
+	nr = mix(nr, nr_band, strata * 0.55);
+	vec3 ngrav = sample_tri(rock_normal, world_pos, world_n, uv_scale * 1.15).rgb;
+	ns = mix(ns, ngrav, gravel * 0.55 * (1.0 - rock_w));
 	NORMAL_MAP = ns * sand_w + nd * dirt_w + nr * rock_w;
-	NORMAL_MAP_DEPTH = mix(1.15, 0.12, haze);
+	NORMAL_MAP_DEPTH = mix(1.05, 0.12, haze);
 }

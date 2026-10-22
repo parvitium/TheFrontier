@@ -71,6 +71,18 @@ The title screen is a cinematic 3D outpost (Play with mode select, Settings, Cre
 
 Code is MIT (`LICENSE`). Engine: Godot 4.7.2 (MIT).
 
+## Landscape bake
+
+Playfield, horizon, heightmap, cover rocks, and butte meshes are baked so the arena boots inside the CI smoke window.
+
+Regenerate after changing `Landscape.height_at`, mesa specs, grid resolution, or butte/boulder generators:
+
+```bash
+godot --headless --path . --scene res://tools/bake_landscape.tscn
+```
+
+Writes `assets/baked/*.res` (near sand, playfield, mid/far terrain, heightmap, cover boulders, pebble, scrub, mesa talus, horizon boulder, buttes). Run it in a **fresh Godot process** so mesh caches are empty — re-saving already-loaded resources can change bytes. Two empty-process runs should be sha256-identical.
+
 ## Tests and CI
 
 `tests/test_runner.tscn` drives `Session.cmd_*` for every mode's win/loss, economy, respawn, combat, ammo, pause, and wall-breach reachability. GitHub Actions (`.github/workflows/ci.yml`) downloads Godot 4.7.2, imports, runs the suite, then smokes the menu and each arena mode for real seconds (`scripts/ci/smoke.sh`). Arena smoke also spawns a live `MobActor` and checks it moves and takes `Session` damage. Do not use `--quit-after N` for time — that is frames, not seconds.
