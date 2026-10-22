@@ -1,7 +1,11 @@
 class_name PbrLibrary
 extends RefCounted
 
-const METAL_DIR := "res://assets/textures/metal_plate"
+const TREAD_DIR := "res://assets/textures/metal_plate"
+const METAL_DIR := TREAD_DIR
+const PAINT_DIR := "res://assets/textures/rusty_painted_metal"
+const CORRUG_DIR := "res://assets/textures/corrugated_iron"
+const OXIDE_DIR := "res://assets/textures/rusty_metal_sheet"
 const RUST_DIR := "res://assets/textures/rusty_metal_02"
 const CONCRETE_DIR := "res://assets/textures/concrete_floor_02"
 const ROCK_DIR := "res://assets/textures/rock_face"
@@ -12,8 +16,25 @@ const TERRAIN_SHADER := "res://assets/shaders/terrain_blend.gdshader"
 static var _cache: Dictionary = {}
 
 
-static func metal(tint: Color = Color(1, 1, 1), metallic: float = 0.82, roughness_mul: float = 1.0, world_triplanar: bool = true) -> StandardMaterial3D:
-	return _pbr("metal", METAL_DIR, tint, metallic, roughness_mul, true, 0.35, world_triplanar)
+static func tread(tint: Color = Color(1, 1, 1), metallic: float = 0.84, roughness_mul: float = 1.0, world_triplanar: bool = true) -> StandardMaterial3D:
+	return _pbr("tread", TREAD_DIR, tint, metallic, roughness_mul, true, 0.42, world_triplanar)
+
+
+static func painted(tint: Color = Color(1, 1, 1), metallic: float = 0.42, roughness_mul: float = 1.05, world_triplanar: bool = true) -> StandardMaterial3D:
+	return _pbr("paint", PAINT_DIR, tint, metallic, roughness_mul, false, 0.28, world_triplanar)
+
+
+static func corrugated(tint: Color = Color(1, 1, 1), metallic: float = 0.58, roughness_mul: float = 0.95, world_triplanar: bool = true) -> StandardMaterial3D:
+	return _pbr("corrug", CORRUG_DIR, tint, metallic, roughness_mul, false, 0.48, world_triplanar)
+
+
+static func oxidized(tint: Color = Color(1, 1, 1), metallic: float = 0.72, roughness_mul: float = 1.0, world_triplanar: bool = true) -> StandardMaterial3D:
+	return _pbr("oxide", OXIDE_DIR, tint, metallic, roughness_mul, false, 0.30, world_triplanar)
+
+
+static func metal(tint: Color = Color(1, 1, 1), metallic: float = 0.72, roughness_mul: float = 1.0, world_triplanar: bool = true) -> StandardMaterial3D:
+	# Default mill steel is oxidized sheet, not diamond tread.
+	return oxidized(tint, metallic, roughness_mul, world_triplanar)
 
 
 static func rust(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
@@ -25,7 +46,7 @@ static func concrete(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
 
 
 static func rock(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
-	return _pbr("rock", ROCK_DIR, tint, 0.02, 1.05, false, 0.08)
+	return _pbr("rock", ROCK_DIR, tint, 0.0, 1.18, false, 0.08)
 
 
 static func sand(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
@@ -136,11 +157,11 @@ static func terrain() -> ShaderMaterial:
 		_bind_tri(mat, "sand", SAND_DIR)
 		_bind_tri(mat, "dirt", SAND_DIR)
 		_bind_tri(mat, "rock", ROCK_DIR)
-		mat.set_shader_parameter("uv_scale", 0.075)
-		mat.set_shader_parameter("rock_slope", 0.36)
-		mat.set_shader_parameter("sand_tint", Vector3(1.1, 0.88, 0.62))
-		mat.set_shader_parameter("dirt_tint", Vector3(0.98, 0.68, 0.38))
-		mat.set_shader_parameter("rock_tint", Vector3(0.9, 0.72, 0.52))
+		mat.set_shader_parameter("uv_scale", 0.16)
+		mat.set_shader_parameter("rock_slope", 0.34)
+		mat.set_shader_parameter("sand_tint", Vector3(1.12, 0.9, 0.64))
+		mat.set_shader_parameter("dirt_tint", Vector3(1.0, 0.7, 0.4))
+		mat.set_shader_parameter("rock_tint", Vector3(0.92, 0.74, 0.54))
 	_cache["terrain"] = mat
 	return mat
 
@@ -166,20 +187,26 @@ static func by_kit_name(name: String) -> Material:
 	if "flesh" in n:
 		return flesh(Color(0.55, 0.16, 0.12))
 	if "shell" in n:
-		return metal(Color(0.55, 0.58, 0.6), 0.45, 1.1)
+		return oxidized(Color(0.62, 0.58, 0.52), 0.48, 1.08)
 	if "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n:
 		return polymer(Color(0.13, 0.135, 0.14) if "stock" in n or "grip" in n else Color(0.16, 0.165, 0.17))
-	if "dark" in n:
-		return metal(Color(0.2, 0.21, 0.22), 0.72, 0.85)
+	if "tread" in n or "floor" in n or "step" in n or "grate" in n or "walk" in n or "ladder" in n or "plinthlip" in n or "padinset" in n:
+		return tread()
+	if "corrug" in n or "roof" in n or "panel" in n or "slat" in n:
+		return corrugated(Color(0.92, 0.78, 0.62) if "roof" in n else Color(1, 1, 1))
+	if "coil" in n or "oxid" in n or "brushed" in n:
+		return oxidized(Color(0.78, 0.7, 0.58), 0.68, 0.92)
 	if "paint" in n:
-		return metal(Color(0.42, 0.4, 0.36), 0.55, 0.92)
+		return painted(Color(0.78, 0.62, 0.42))
+	if "dark" in n:
+		return oxidized(Color(0.28, 0.26, 0.24), 0.64, 1.05)
 	if "metal" in n:
-		return metal()
-	return metal(Color(0.7, 0.72, 0.74), 0.4, 1.0)
+		return oxidized()
+	return painted(Color(0.72, 0.66, 0.56), 0.38, 1.08)
 
 
 static func _pbr(key: String, dir: String, tint: Color, metallic: float, roughness_mul: float, is_metal: bool, uv_scale: float = 0.35, world_triplanar: bool = true) -> StandardMaterial3D:
-	var cache_key := "%s_%s_%.2f_%s" % [key, tint.to_html(false), metallic, str(world_triplanar)]
+	var cache_key := "%s_%s_%.2f_%.2f_%.2f_%s" % [key, tint.to_html(false), metallic, roughness_mul, uv_scale, str(world_triplanar)]
 	if _cache.has(cache_key):
 		return _cache[cache_key]
 	var mat := StandardMaterial3D.new()

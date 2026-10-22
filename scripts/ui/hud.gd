@@ -22,53 +22,57 @@ func _ready() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
-	var plate := Panel.new()
-	plate.position = Vector2(12, 10)
-	plate.size = Vector2(420, 168)
+	var plate := PanelContainer.new()
+	plate.name = "StatsPlate"
+	plate.position = Vector2(10, 8)
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.add_theme_stylebox_override("panel", ThemeUtil.panel(Color(0.03, 0.04, 0.05, 0.55)))
+	plate.add_theme_stylebox_override("panel", ThemeUtil.film_bar(Color(0.02, 0.03, 0.035, 0.20)))
 	root.add_child(plate)
-	_phase = _label(root, Vector2(20, 16), 20, Color(0.85, 0.9, 0.88))
-	_objective = _label(root, Vector2(20, 44), 16, Color(0.7, 0.78, 0.74))
-	_core = _label(root, Vector2(20, 72), 16, Color(1.0, 0.78, 0.32))
-	_hp = _label(root, Vector2(20, 96), 16, Color(0.85, 0.35, 0.32))
-	_res = _label(root, Vector2(20, 120), 16, Color(0.45, 0.85, 0.75))
-	_ammo = _label(root, Vector2(20, 144), 16, Color(0.8, 0.82, 0.7))
+	var stats := VBoxContainer.new()
+	stats.name = "StatsCol"
+	stats.add_theme_constant_override("separation", 1)
+	plate.add_child(stats)
+	_phase = _col_label(stats, 17, Color(0.88, 0.92, 0.9))
+	_objective = _col_label(stats, 14, Color(0.74, 0.8, 0.76))
+	_core = _col_label(stats, 14, Color(1.0, 0.8, 0.38))
+	_hp = _col_label(stats, 14, Color(0.9, 0.4, 0.36))
+	_res = _col_label(stats, 14, Color(0.5, 0.86, 0.76))
+	_ammo = _col_label(stats, 14, Color(0.84, 0.84, 0.74))
 	_hint_plate = PanelContainer.new()
 	_hint_plate.name = "HintPlate"
 	_hint_plate.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_hint_plate.anchor_top = 1.0
 	_hint_plate.anchor_bottom = 1.0
-	_hint_plate.offset_left = 16
-	_hint_plate.offset_right = -16
-	_hint_plate.offset_top = -56
-	_hint_plate.offset_bottom = -16
+	_hint_plate.offset_left = 120
+	_hint_plate.offset_right = -120
+	_hint_plate.offset_top = -40
+	_hint_plate.offset_bottom = -10
 	_hint_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hint_plate.add_theme_stylebox_override("panel", ThemeUtil.overlay_plate(Color(0.03, 0.035, 0.04, 0.78)))
+	_hint_plate.add_theme_stylebox_override("panel", ThemeUtil.film_bar(Color(0.02, 0.025, 0.03, 0.16)))
 	root.add_child(_hint_plate)
 	_hint = Label.new()
 	_hint.name = "Hint"
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ThemeUtil.readable_font(_hint, Color(0.92, 0.9, 0.82), 15)
+	ThemeUtil.readable_font(_hint, Color(0.92, 0.9, 0.82), 14)
 	_hint_plate.add_child(_hint)
 	var banner_wrap := CenterContainer.new()
 	banner_wrap.name = "BannerWrap"
 	banner_wrap.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	banner_wrap.offset_left = 80
-	banner_wrap.offset_right = -80
-	banner_wrap.offset_top = 78
-	banner_wrap.offset_bottom = 138
+	banner_wrap.offset_left = 160
+	banner_wrap.offset_right = -160
+	banner_wrap.offset_top = 10
+	banner_wrap.offset_bottom = 52
 	banner_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(banner_wrap)
 	_banner_plate = PanelContainer.new()
 	_banner_plate.name = "BannerPlate"
 	_banner_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_banner_plate.add_theme_stylebox_override("panel", ThemeUtil.overlay_plate(Color(0.025, 0.03, 0.035, 0.84)))
+	_banner_plate.add_theme_stylebox_override("panel", ThemeUtil.film_bar(Color(0.02, 0.025, 0.03, 0.16)))
 	banner_wrap.add_child(_banner_plate)
 	_banner = Label.new()
 	_banner.name = "Banner"
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ThemeUtil.readable_font(_banner, Color(0.98, 0.93, 0.72), 22)
+	ThemeUtil.readable_font(_banner, Color(0.98, 0.93, 0.72), 18)
 	_banner_plate.add_child(_banner)
 	var cross_shadow := ColorRect.new()
 	cross_shadow.color = Color(0.02, 0.02, 0.03, 0.7)
@@ -144,6 +148,13 @@ func _on_banner(text: String) -> void:
 	_banner.text = text
 	_banner_time = 3.2
 	_banner_plate.visible = text != ""
+
+
+func _col_label(parent: Control, size: int, color: Color) -> Label:
+	var label := Label.new()
+	ThemeUtil.readable_font(label, color, size)
+	parent.add_child(label)
+	return label
 
 
 func _label(parent: Control, pos: Vector2, size: int, color: Color) -> Label:

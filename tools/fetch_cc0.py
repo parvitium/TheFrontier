@@ -18,6 +18,9 @@ CTX = ssl.create_default_context()
 
 TEXTURES = {
     "metal_plate": ["Diffuse", "nor_gl", "Rough", "Metal", "AO"],
+    "rusty_painted_metal": ["Diffuse", "nor_gl", "Rough", "AO"],
+    "corrugated_iron": ["Diffuse", "nor_gl", "Rough", "AO"],
+    "rusty_metal_sheet": ["Diffuse", "nor_gl", "Rough", "AO"],
     "rusty_metal_02": ["Diffuse", "nor_gl", "Rough", "Metal", "AO"],
     "concrete_floor_02": ["Diffuse", "nor_gl", "Rough", "AO"],
     "rock_face": ["Diffuse", "nor_gl", "Rough", "AO"],
@@ -28,6 +31,9 @@ TEXTURES = {
 # Prefer 2k for terrain-scale, 1k for metal/detail.
 RES = {
     "metal_plate": "1k",
+    "rusty_painted_metal": "1k",
+    "corrugated_iron": "1k",
+    "rusty_metal_sheet": "1k",
     "rusty_metal_02": "1k",
     "concrete_floor_02": "1k",
     "rock_face": "2k",

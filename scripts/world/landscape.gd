@@ -8,6 +8,7 @@ const PLAY_RADIUS := 38.0
 const GRID := 110
 const MAP_COLLISION := 72.0
 const COL_VERTS := 73
+const PLAY_QUADS := 96
 const FOUNDATION_SINK := 0.04
 
 
@@ -21,14 +22,17 @@ static func height_at(x: float, z: float) -> float:
 	var pad := 1.0 - _smooth(5.8, 10.5, r)
 	var basin := (n1 - 0.5) * 0.1 + carved
 	basin *= 1.0 - pad * 0.94
+	var ripple := (_vnoise(x + 3.0, z - 1.5, 0.82) - 0.5) * 0.055
+	ripple += (_vnoise(x - 11.0, z + 7.0, 1.65) - 0.5) * 0.028
+	ripple *= 1.0 - pad
+	if r < PLAY_RADIUS:
+		return basin + ripple
 	var edge := _smooth(PLAY_RADIUS - 2.0, PLAY_RADIUS + 16.0, r)
 	var dunes := (n1 * 0.45 + ridge * 1.15 + n3 * 1.6) * edge
 	var rise := _smooth(PLAY_RADIUS, 95.0, r) * 4.2 + _smooth(95.0, 190.0, r) * 9.5
 	var mesa := _mesa_field(x, z)
 	var rim := _smooth(WORLD_SIZE * 0.40, WORLD_SIZE * 0.50, r) * 36.0
-	if r < PLAY_RADIUS:
-		return basin
-	return basin * (1.0 - edge) + rise + dunes * 2.4 + mesa + rim
+	return basin * (1.0 - edge) + rise + dunes * 2.4 + mesa + rim + ripple * (1.0 - edge) * 0.35
 
 
 static func seat(pos: Vector3, extra_y: float = 0.0, sink: float = 0.0) -> Vector3:
@@ -95,7 +99,7 @@ static func build(root: Node3D, with_collision: bool = true) -> void:
 	_terrain_mesh(holder)
 	if with_collision:
 		_playfield_collision(holder)
-	_buttes(holder)
+	_mesa_debris(holder)
 	_dressing(holder)
 	_cover_rocks(holder)
 	_horizon_scrub(holder)
@@ -134,7 +138,7 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 
 static func _terrain_mesh(parent: Node3D) -> void:
 	_grid_mesh(parent, "Terrain", WORLD_SIZE, GRID, true)
-	_grid_mesh(parent, "Playfield", MAP_COLLISION, COL_VERTS - 1, false)
+	_grid_mesh(parent, "Playfield", MAP_COLLISION, PLAY_QUADS, false)
 
 
 static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_playfield: bool) -> void:
@@ -159,7 +163,8 @@ static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: in
 			_add_tri(st, p00, p10, p11)
 			_add_tri(st, p00, p11, p01)
 	st.generate_normals()
-	st.generate_tangents()
+	if not skip_playfield:
+		st.generate_tangents()
 	var mesh := st.commit()
 	var visual := MeshInstance3D.new()
 	visual.name = mesh_name
@@ -198,42 +203,44 @@ static func _playfield_collision(parent: Node3D) -> void:
 	parent.add_child(body)
 
 
-static func _buttes(parent: Node3D) -> void:
-	var specs: Array[Vector4] = [
-		Vector4(78, 22, -96, 18),
-		Vector4(-110, 26, -64, 22),
-		Vector4(124, 30, 48, 20),
-		Vector4(-86, 20, 118, 16),
-		Vector4(42, 34, 156, 24),
-		Vector4(-168, 38, 22, 28),
-		Vector4(176, 28, -132, 26),
-		Vector4(-48, 42, -178, 30),
-		Vector4(210, 36, 88, 22),
-		Vector4(-194, 32, -154, 24),
-		Vector4(18, 48, 214, 34),
-		Vector4(-220, 40, 140, 28),
-	]
-	for i in specs.size():
-		var s: Vector4 = specs[i]
-		_butte(parent, Vector3(s.x, 0, s.z), s.w, s.y, 30 + i * 17)
+# x, cap height, z, radius — one list for heightfield and debris.
+const MESA_SPECS: Array[Vector4] = [
+	Vector4(78, 16, -96, 22),
+	Vector4(-110, 18, -64, 26),
+	Vector4(124, 20, 48, 24),
+	Vector4(-86, 14, 118, 20),
+	Vector4(42, 22, 156, 28),
+	Vector4(-168, 24, 22, 32),
+	Vector4(176, 18, -132, 30),
+	Vector4(-48, 26, -178, 34),
+	Vector4(210, 22, 88, 24),
+	Vector4(-194, 20, -154, 26),
+	Vector4(18, 28, 214, 36),
+	Vector4(-220, 24, 140, 30),
+]
 
 
-static func _butte(parent: Node3D, pos: Vector3, radius: float, height: float, seed: int) -> void:
-	var y0 := height_at(pos.x, pos.z)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	for k in 5:
-		var chunk := VisualKit.instance(["rock_a", "rock_b", "rock_c"][k % 3])
-		if chunk == null:
-			continue
-		var ox := rng.randf_range(-radius * 0.35, radius * 0.35)
-		var oz := rng.randf_range(-radius * 0.35, radius * 0.35)
-		var sc := radius * rng.randf_range(0.085, 0.14)
-		chunk.scale = Vector3(sc, height * rng.randf_range(0.045, 0.07), sc * rng.randf_range(0.8, 1.2))
-		chunk.rotation = Vector3(rng.randf_range(-0.12, 0.12), rng.randf() * TAU, rng.randf_range(-0.1, 0.1))
-		chunk.position = Vector3(pos.x + ox, y0 - 1.2 + float(k) * 0.15, pos.z + oz)
-		parent.add_child(chunk)
-	_dust_skirt(parent, Vector3(pos.x, y0 + 0.04, pos.z), radius * 1.5, height * 0.2)
+static func _mesa_debris(parent: Node3D) -> void:
+	var holder := Node3D.new()
+	holder.name = "MesaDressing"
+	parent.add_child(holder)
+	for i in MESA_SPECS.size():
+		var s: Vector4 = MESA_SPECS[i]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 40 + i * 19
+		for k in 3:
+			var ang := rng.randf() * TAU
+			var rad := s.w * rng.randf_range(0.72, 1.18)
+			var pos := Vector3(s.x + cos(ang) * rad, 0.0, s.z + sin(ang) * rad)
+			var rock := plant_rock(holder, pos, 500 + i * 17 + k, false)
+			if rock and k == 0:
+				rock.name = "MesaTalus%d" % i
+		var cap_ang := rng.randf() * TAU
+		var cap_r := s.w * rng.randf_range(0.08, 0.22)
+		var cap := plant_rock(holder, Vector3(s.x + cos(cap_ang) * cap_r, 0.0, s.z + sin(cap_ang) * cap_r), 800 + i * 11, false)
+		if cap:
+			cap.name = "MesaCap%d" % i
+			cap.scale *= 0.55
 
 
 static func _dressing(parent: Node3D) -> void:
@@ -245,21 +252,22 @@ static func _dressing(parent: Node3D) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = pebble
-	mm.instance_count = 420
+	mm.instance_count = 480
 	pebbles.multimesh = mm
 	pebbles.material_override = PbrLibrary.rock(Color(0.8, 0.72, 0.6))
 	parent.add_child(pebbles)
 	for i in mm.instance_count:
-		var r := rng.randf_range(4.0, 210.0)
+		var near := i < 280
+		var r := rng.randf_range(3.2, 36.0) if near else rng.randf_range(8.0, 210.0)
 		var a := rng.randf() * TAU
 		var x := cos(a) * r
 		var z := sin(a) * r
 		var y := height_at(x, z)
 		var xf := Transform3D()
-		var s := rng.randf_range(0.12, 0.55)
-		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.35, 0.7), s))
+		var s := rng.randf_range(0.06, 0.28) if near else rng.randf_range(0.12, 0.55)
+		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.32, 0.7), s))
 		xf = xf.rotated(Vector3.UP, rng.randf() * TAU)
-		xf.origin = Vector3(x, y + 0.01, z)
+		xf.origin = Vector3(x, y + 0.008, z)
 		mm.set_instance_transform(i, xf)
 	var scrub_mesh := KitFactory.scrub_mesh()
 	var scrub := MultiMeshInstance3D.new()
@@ -267,22 +275,23 @@ static func _dressing(parent: Node3D) -> void:
 	var sm := MultiMesh.new()
 	sm.transform_format = MultiMesh.TRANSFORM_3D
 	sm.mesh = scrub_mesh
-	sm.instance_count = 260
+	sm.instance_count = 280
 	scrub.multimesh = sm
 	scrub.material_override = PbrLibrary.scrub()
 	parent.add_child(scrub)
 	for i in sm.instance_count:
-		var r := rng.randf_range(6.0, 190.0)
+		var near := i < 140
+		var r := rng.randf_range(5.0, 34.0) if near else rng.randf_range(10.0, 190.0)
 		var a := rng.randf() * TAU
 		var x := cos(a) * r
 		var z := sin(a) * r
-		if height_at(x, z) > 22.0:
-			x *= 0.4
-			z *= 0.4
+		if height_at(x, z) > 18.0:
+			x *= 0.45
+			z *= 0.45
 		var y := height_at(x, z)
 		var xf := Transform3D()
-		var s := rng.randf_range(0.45, 1.35)
-		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.7, 1.3), s))
+		var s := rng.randf_range(0.32, 0.95) if near else rng.randf_range(0.45, 1.35)
+		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.65, 1.25), s))
 		xf = xf.rotated(Vector3.UP, rng.randf() * TAU)
 		xf.origin = Vector3(x, y, z)
 		sm.set_instance_transform(i, xf)
@@ -324,6 +333,9 @@ static func _cover_rocks(parent: Node3D) -> void:
 		Vector3(62, 0, 40), Vector3(-70, 0, -36),
 		Vector3(5.5, 0, -3.5), Vector3(-6.5, 0, -2.2), Vector3(3.8, 0, -7.5),
 		Vector3(-4.2, 0, 4.8), Vector3(9.5, 0, -5.0), Vector3(-8.8, 0, -8.0),
+		Vector3(2.4, 0, 9.6), Vector3(-11.0, 0, 6.4), Vector3(13.2, 0, -9.5),
+		Vector3(-15.5, 0, -6.8), Vector3(21.0, 0, 12.0), Vector3(-22.5, 0, 8.5),
+		Vector3(4.0, 0, -14.5), Vector3(-7.2, 0, -16.0), Vector3(11.8, 0, 15.4),
 	]
 	for i in spots.size():
 		plant_rock(parent, spots[i], 200 + i * 13, i < 8)
@@ -355,31 +367,35 @@ static func _dust_skirt(parent: Node3D, pos: Vector3, radius: float, _hint_h: fl
 
 static func _mesa_field(x: float, z: float) -> float:
 	var h := 0.0
-	var mesas: Array[Vector4] = [
-		Vector4(78, 14, -96, 20),
-		Vector4(-110, 16, -64, 24),
-		Vector4(124, 18, 48, 22),
-		Vector4(-86, 12, 118, 18),
-		Vector4(42, 20, 156, 26),
-		Vector4(-168, 22, 22, 30),
-		Vector4(176, 16, -132, 28),
-		Vector4(-48, 24, -178, 32),
-	]
 	var n := _vnoise(x, z, 0.035)
 	var n2 := _vnoise(x + 17.0, z - 9.0, 0.08)
 	var n3 := _vnoise(x * 0.6, z * 0.6, 0.055)
-	for m in mesas:
-		var dx := x - m.x + (n - 0.5) * m.w * 0.22
-		var dz := z - m.z + (n2 - 0.5) * m.w * 0.22
+	var n4 := _vnoise(x - 9.0, z + 13.0, 0.12)
+	for m in MESA_SPECS:
+		var dx := x - m.x + (n - 0.5) * m.w * 0.16
+		var dz := z - m.z + (n2 - 0.5) * m.w * 0.16
 		var md := sqrt(dx * dx + dz * dz)
-		var inner := m.w * (0.42 + n * 0.12)
-		var outer := m.w * (0.88 + n2 * 0.14)
-		var top := 1.0 - _smooth(inner, outer, md)
-		var gully := pow(absf(n3 * 2.0 - 1.0), 1.6)
-		var rim := 1.0 - _smooth(inner * 0.7, outer, md)
-		top *= 1.0 - gully * 0.38 * rim
-		var cap := m.y * (0.88 + n * 0.18)
-		h = maxf(h, top * cap)
+		var r_top := m.w * (0.26 + n * 0.08)
+		var r_cliff := m.w * (0.50 + n2 * 0.05)
+		var r_talus := m.w * (1.18 + n2 * 0.08)
+		var gully := pow(absf(n3 * 2.0 - 1.0), 1.45)
+		var cap := m.y * (0.90 + n * 0.12)
+		var land := 0.0
+		if md <= r_top:
+			var dish := (md / maxf(0.001, r_top))
+			dish = dish * dish
+			land = cap * (0.78 + n4 * 0.16 - gully * 0.30 - dish * 0.10)
+		elif md <= r_cliff:
+			var t := (md - r_top) / maxf(0.001, r_cliff - r_top)
+			var top_h := cap * (0.78 + n4 * 0.16 - gully * 0.22)
+			var foot_h := cap * 0.30
+			land = lerpf(top_h, foot_h, t * t * (3.0 - 2.0 * t))
+		elif md <= r_talus:
+			var t := (md - r_cliff) / maxf(0.001, r_talus - r_cliff)
+			var foot_h := cap * 0.30
+			var apron := 1.0 - t
+			land = foot_h * apron * apron * (0.85 + n2 * 0.2)
+		h = maxf(h, land)
 	h += (n2 - 0.5) * 0.9 * _smooth(PLAY_RADIUS + 20.0, 80.0, sqrt(x * x + z * z))
 	return h
 

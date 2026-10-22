@@ -10,27 +10,34 @@ static func readable_font(label: Label, color: Color, size: int = 0) -> void:
 	if size > 0:
 		label.add_theme_font_size_override("font_size", size)
 	font_color(label, color)
-	label.add_theme_constant_override("outline_size", 8)
-	label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.03, 0.92))
-	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.78))
+	label.add_theme_constant_override("outline_size", 7)
+	label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.03, 0.94))
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.72))
 	label.add_theme_constant_override("shadow_offset_x", 1)
 	label.add_theme_constant_override("shadow_offset_y", 1)
-	label.add_theme_constant_override("shadow_outline_size", 4)
+	label.add_theme_constant_override("shadow_outline_size", 3)
 
 
-static func overlay_plate(color: Color = Color(0.03, 0.035, 0.04, 0.82)) -> StyleBoxFlat:
+static func film_bar(color: Color = Color(0.02, 0.025, 0.03, 0.18)) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = color
-	box.border_color = Color(0.0, 0.0, 0.0, 0.55)
-	box.set_border_width_all(1)
-	box.set_corner_radius_all(6)
-	box.content_margin_left = 18
-	box.content_margin_right = 18
-	box.content_margin_top = 8
-	box.content_margin_bottom = 8
-	box.shadow_color = Color(0, 0, 0, 0.5)
-	box.shadow_size = 8
+	box.border_color = Color(0.86, 0.68, 0.38, 0.28)
+	box.border_width_left = 0
+	box.border_width_top = 0
+	box.border_width_right = 0
+	box.border_width_bottom = 1
+	box.set_corner_radius_all(0)
+	box.content_margin_left = 10
+	box.content_margin_right = 10
+	box.content_margin_top = 4
+	box.content_margin_bottom = 5
+	box.shadow_color = Color(0, 0, 0, 0.28)
+	box.shadow_size = 4
 	return box
+
+
+static func overlay_plate(color: Color = Color(0.03, 0.035, 0.04, 0.22)) -> StyleBoxFlat:
+	return film_bar(color)
 
 
 static func panel(color: Color = Color(0.05, 0.07, 0.09, 0.78)) -> StyleBoxFlat:

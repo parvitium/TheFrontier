@@ -41,11 +41,11 @@ func _ready() -> void:
 
 
 func _credits_source() -> String:
-	var path := "res://ASSETS.md"
-	if FileAccess.file_exists(path):
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f:
-			return f.get_as_text()
+	for path in ["res://assets/CREDITS.md", "res://ASSETS.md"]:
+		if FileAccess.file_exists(path):
+			var f := FileAccess.open(path, FileAccess.READ)
+			if f:
+				return f.get_as_text()
 	return "The Frontier\nOriginal code (MIT). CC0 textures and HDRI from Poly Haven. Self-made meshes and audio."
 
 

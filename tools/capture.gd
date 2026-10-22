@@ -7,6 +7,7 @@ extends Node
 ##   --shot=dune_side --freeze=1
 ##   --shot=dune_fps --freeze=1
 ##   --shot=placement --freeze=1
+##   --shot=mesas --freeze=1
 
 var _shot: String = "menu"
 var _out: String = "user://shot.png"
@@ -70,6 +71,8 @@ func _lock_arena_camera(arena: Node) -> void:
 			_seat_player(player, Vector3(7.0, 0.0, -22.0), 0.06, 0.2)
 		"placement":
 			_shot_placement(arena, player)
+		"mesas":
+			_shot_mesas(arena, player)
 		_:
 			_seat_player(player, Vector3(0.0, 0.0, 6.0), -0.08, 0.0)
 
@@ -99,6 +102,20 @@ func _shot_dune_side(arena: Node, player: Node3D) -> void:
 	cam.position = Landscape.seat(Vector3(17.5, 0.0, -11.5), 2.2)
 	arena.add_child(cam)
 	cam.look_at(Landscape.seat(ridge, 0.7), Vector3.UP)
+	cam.current = true
+
+
+func _shot_mesas(arena: Node, player: Node3D) -> void:
+	if player is PlayerController:
+		(player as PlayerController).visible = false
+	var target := Vector3(78.0, 0.0, -96.0)
+	var y := Landscape.height_at(target.x, target.z)
+	var cam := Camera3D.new()
+	cam.name = "CaptureCam"
+	cam.fov = 40.0
+	cam.position = Vector3(122.0, maxf(8.0, y * 0.42 + 7.5), -54.0)
+	arena.add_child(cam)
+	cam.look_at(Vector3(target.x, y * 0.62, target.z), Vector3.UP)
 	cam.current = true
 
 

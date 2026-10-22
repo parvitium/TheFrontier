@@ -100,6 +100,11 @@ void fragment() {
 	albedo = mix(albedo, rock * 0.82, specks * 0.45 * (1.0 - rock_w));
 	albedo = mix(albedo, sand * vec3(1.08, 0.96, 0.8), crust * 0.22 * (1.0 - rock_w));
 
+	float band = fract(world_pos.y * 0.31 + fbm(world_pos.xz * 0.02) * 0.12);
+	float strata = smoothstep(0.0, 0.07, band) * (1.0 - smoothstep(0.16, 0.28, band));
+	albedo = mix(albedo, rock * vec3(1.14, 0.88, 0.64), strata * rock_w * 0.42);
+	albedo = mix(albedo, rock * vec3(0.72, 0.5, 0.34), strata * rock_w * 0.18 * step(0.5, band));
+
 	ALBEDO = albedo;
 
 	float rs = sample_tri(sand_rough, world_pos, world_n, uv_scale).r;
@@ -109,8 +114,13 @@ void fragment() {
 	METALLIC = 0.015 * (1.0 - rock_w);
 
 	vec3 ns = sample_tri(sand_normal, world_pos, world_n, uv_scale).rgb;
+	vec3 ns_fine = sample_tri(sand_normal, world_pos, world_n, uv_scale * 3.6).rgb;
+	vec3 ns_rip = sample_tri(sand_normal, world_pos, world_n, uv_scale * 8.2).rgb;
+	ns = mix(mix(ns, ns_fine, 0.42), ns_rip, 0.22);
 	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.92).rgb;
 	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.48).rgb;
+	vec3 nr_band = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.18).rgb;
+	nr = mix(nr, nr_band, strata * 0.35);
 	NORMAL_MAP = ns * sand_w + nd * dirt_w + nr * rock_w;
-	NORMAL_MAP_DEPTH = 0.95;
+	NORMAL_MAP_DEPTH = 1.15;
 }
