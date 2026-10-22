@@ -43,7 +43,7 @@ MAP_FILE = {
     "AO": "ao",
 }
 
-HDRI_ID = "the_sky_is_on_fire"
+HDRI_ID = "qwantani_dusk_2_puresky"
 HDRI_RES = "2k"
 
 

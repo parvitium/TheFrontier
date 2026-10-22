@@ -21,8 +21,8 @@ func tick(delta: float, camera: Camera3D, fire_held: bool, fire_tap: bool, reloa
 	_flash.light_energy = max(0.0, _flash.light_energy - delta * 22.0)
 	_recoil = max(0.0, _recoil - delta * 9.0)
 	if _view:
-		_view.position = Vector3(0.28, -0.22, -0.48) + Vector3(0.0, _recoil * 0.012, _recoil * 0.04)
-		_view.rotation_degrees = Vector3(4.0 + _recoil * 3.5, 6.0, 2.0)
+		_view.position = Vector3(0.18, -0.18, -0.32) + Vector3(0.0, _recoil * 0.008, _recoil * 0.028)
+		_view.rotation_degrees = Vector3(5.0 + _recoil * 2.8, 20.0, 2.0)
 	if reload_tap:
 		Session.cmd_start_reload()
 		return
@@ -92,9 +92,9 @@ func _refresh_view() -> void:
 		var mat := PbrLibrary.metal(Color(0.25, 0.62, 0.7) if Session.state.selected_weapon == 0 else Color(0.72, 0.38, 0.22), 0.55, 0.7)
 		_view = Greybox.box(Vector3(0.16, 0.16, 0.72), mat, "ViewModel")
 	_view.name = "ViewModel"
-	_view.position = Vector3(0.28, -0.22, -0.48)
-	_view.rotation_degrees = Vector3(4.0, 6.0, 2.0)
-	_view.scale = Vector3(1.35, 1.35, 1.35)
+	_view.position = Vector3(0.18, -0.18, -0.32)
+	_view.rotation_degrees = Vector3(5.0, 20.0, 2.0)
+	_view.scale = Vector3(0.88, 0.88, 0.88)
 	_prepare_viewmodel(_view)
 	add_child(_view)
 	_muzzle = VisualKit.find_node(_view, "Muzzle")
@@ -115,10 +115,12 @@ func _prepare_viewmodel(root: Node) -> void:
 		if src == null:
 			src = mi.get_active_material(0)
 		var mat_name: String = src.resource_name if src else mi.name
-		var n: String = mat_name.to_lower()
-		if "emissive" in n:
-			mi.material_override = PbrLibrary.emissive(Color(0.35, 0.9, 1.0), 1.6)
-		elif "rubber" in n or "dark" in n:
-			mi.material_override = PbrLibrary.metal(Color(0.16, 0.17, 0.18), 0.75, 0.85, false)
+		var n: String = mat_name.to_lower() + " " + mi.name.to_lower()
+		if "emissive" in n or "optic" in n:
+			mi.material_override = PbrLibrary.emissive(Color(0.35, 0.9, 1.0), 0.9)
+		elif "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n:
+			mi.material_override = PbrLibrary.polymer()
+		elif "dark" in n or "mag" in n or "sight" in n:
+			mi.material_override = PbrLibrary.metal(Color(0.22, 0.23, 0.24), 0.7, 0.8, false)
 		else:
-			mi.material_override = PbrLibrary.metal(Color(0.55, 0.58, 0.6), 0.8, 0.75, false)
+			mi.material_override = PbrLibrary.metal(Color(0.58, 0.6, 0.62), 0.82, 0.7, false)

@@ -23,6 +23,13 @@ func _ready() -> void:
 	_build_ui()
 
 
+func freeze_cinematic(orbit: float = 0.35) -> void:
+	_orbit = orbit
+	set_process(false)
+	if _camera:
+		_place_camera(_orbit)
+
+
 func _process(delta: float) -> void:
 	_orbit += delta * 0.045
 	_place_camera(_orbit)

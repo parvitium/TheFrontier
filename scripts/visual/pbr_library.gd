@@ -36,6 +36,55 @@ static func dirt(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
 	return _pbr("dirt", DIRT_DIR, tint, 0.0, 1.05, false, 0.14)
 
 
+static func polymer(tint: Color = Color(0.14, 0.145, 0.15)) -> StandardMaterial3D:
+	var key := "polymer_%s" % tint.to_html(false)
+	if _cache.has(key):
+		return _cache[key]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = tint
+	mat.metallic = 0.08
+	mat.roughness = 0.52
+	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var grain := _tex(CONCRETE_DIR, "nor_gl")
+	if grain:
+		mat.normal_enabled = true
+		mat.normal_texture = grain
+		mat.normal_scale = 0.25
+		mat.uv1_scale = Vector3(2.4, 2.4, 2.4)
+	_cache[key] = mat
+	return mat
+
+
+static func dust() -> StandardMaterial3D:
+	if _cache.has("dust"):
+		return _cache["dust"]
+	var base := sand(Color(0.92, 0.78, 0.58))
+	var fade := base.duplicate() as StandardMaterial3D
+	fade.proximity_fade_enabled = true
+	fade.proximity_fade_distance = 0.45
+	fade.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fade.albedo_color = Color(0.78, 0.62, 0.44, 0.72)
+	_cache["dust"] = fade
+	return fade
+
+
+static func scrub() -> StandardMaterial3D:
+	if _cache.has("scrub"):
+		return _cache["scrub"]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.42, 0.34, 0.2)
+	mat.metallic = 0.0
+	mat.roughness = 0.92
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_cache["scrub"] = mat
+	return mat
+
+
+static func texture_in(dir: String, stem: String) -> Texture2D:
+	return _tex(dir, stem)
+
+
 static func emissive(color: Color, energy: float = 4.0) -> StandardMaterial3D:
 	var key := "emit_%s_%.1f" % [color.to_html(false), energy]
 	if _cache.has(key):
@@ -85,8 +134,8 @@ static func terrain() -> ShaderMaterial:
 		_bind_tri(mat, "sand", SAND_DIR)
 		_bind_tri(mat, "dirt", DIRT_DIR)
 		_bind_tri(mat, "rock", ROCK_DIR)
-		mat.set_shader_parameter("uv_scale", 0.11)
-		mat.set_shader_parameter("rock_slope", 0.4)
+		mat.set_shader_parameter("uv_scale", 0.075)
+		mat.set_shader_parameter("rock_slope", 0.36)
 	_cache["terrain"] = mat
 	return mat
 
@@ -111,10 +160,12 @@ static func by_kit_name(name: String) -> Material:
 		return flesh(Color(0.55, 0.16, 0.12))
 	if "shell" in n:
 		return metal(Color(0.55, 0.58, 0.6), 0.45, 1.1)
-	if "rubber" in n or "dark" in n:
-		return metal(Color(0.18, 0.19, 0.2), 0.7, 0.9)
+	if "polymer" in n or "rubber" in n or "stock" in n or "grip" in n or "handguard" in n:
+		return polymer(Color(0.13, 0.135, 0.14) if "stock" in n or "grip" in n else Color(0.16, 0.165, 0.17))
+	if "dark" in n:
+		return metal(Color(0.2, 0.21, 0.22), 0.72, 0.85)
 	if "paint" in n:
-		return metal(Color(0.35, 0.4, 0.44), 0.6, 0.95)
+		return metal(Color(0.42, 0.4, 0.36), 0.55, 0.92)
 	if "metal" in n:
 		return metal()
 	return metal(Color(0.7, 0.72, 0.74), 0.4, 1.0)

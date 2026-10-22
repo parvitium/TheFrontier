@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://o7634tcvndky"
-path="res://.godot/imported/the_sky_is_on_fire.hdr-660f2dfa65264be73dcdec8158ae6d34.ctex"
+uid="uid://jxcnyts3kaje"
+path="res://.godot/imported/qwantani_dusk_2_puresky.hdr-28f5f65c981d1d7966967743f7d27cc0.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/the_sky_is_on_fire.hdr"
-dest_files=["res://.godot/imported/the_sky_is_on_fire.hdr-660f2dfa65264be73dcdec8158ae6d34.ctex"]
+source_file="res://assets/env/qwantani_dusk_2_puresky.hdr"
+dest_files=["res://.godot/imported/qwantani_dusk_2_puresky.hdr-28f5f65c981d1d7966967743f7d27cc0.ctex"]
 
 [params]
 

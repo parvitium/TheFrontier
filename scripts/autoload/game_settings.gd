@@ -98,7 +98,7 @@ func apply_environment(env: Environment, sun: DirectionalLight3D = null) -> void
 	env.fog_enabled = quality >= Quality.MEDIUM
 	if sun:
 		sun.shadow_enabled = quality >= Quality.LOW
-		sun.directional_shadow_max_distance = 110.0 if quality >= Quality.HIGH else 70.0
+		sun.directional_shadow_max_distance = 240.0 if quality >= Quality.HIGH else 90.0
 		sun.light_angular_distance = 0.5 if quality >= Quality.HIGH else 1.2
 
 

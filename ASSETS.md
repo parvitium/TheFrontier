@@ -21,7 +21,7 @@ Authors are credited on each Poly Haven asset page. CC0 does not require attribu
 
 | Asset | Use | URL |
 | --- | --- | --- |
-| the_sky_is_on_fire (2k HDR) | Dusk sky / IBL | https://polyhaven.com/a/the_sky_is_on_fire |
+| qwantani_dusk_2_puresky (2k HDR) | Dusk desert sky / IBL, no man-made skyline | https://polyhaven.com/a/qwantani_dusk_2_puresky |
 
 ## Original meshes
 

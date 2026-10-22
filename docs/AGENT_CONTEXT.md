@@ -18,7 +18,7 @@ Godot 4.7.2 GDScript prototype. Owner: Adam. First-person shooter plus core defe
 | `tests/run_tests.gd` | Headless Session + rules assertions |
 | `tests/smoke_arena.gd` | Headless arena boot for real seconds |
 
-Kit meshes live in `assets/models/` and are instanced by `VisualKit` under each actor's `Visual` node (`asset_slot` metadata). PBR maps and the dusk HDRI are applied in `PbrLibrary` / `WorldLook`. Greybox helpers in `scripts/world/greybox.gd` remain as fallbacks if a `.glb` is missing.
+Kit meshes are built by `KitFactory` (with `.glb` fallbacks) and instanced by `VisualKit` under each actor's `Visual` node (`asset_slot` metadata). `Landscape` generates one badlands heightfield to the horizon. PBR maps and the `qwantani_dusk_2_puresky` HDRI are applied in `PbrLibrary` / `WorldLook`. Greybox helpers in `scripts/world/greybox.gd` remain as fallbacks if a kit piece is missing.
 
 ## State vs presentation
 

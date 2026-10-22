@@ -10,10 +10,11 @@ uniform sampler2D dirt_rough : hint_default_white, filter_linear_mipmap, repeat_
 uniform sampler2D rock_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D rock_rough : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform float uv_scale : hint_range(0.02, 1.0) = 0.12;
-uniform float rock_slope : hint_range(0.1, 1.0) = 0.42;
-uniform vec3 sand_tint = vec3(1.02, 0.92, 0.78);
-uniform vec3 dirt_tint = vec3(0.92, 0.82, 0.7);
+uniform float uv_scale : hint_range(0.02, 1.0) = 0.085;
+uniform float rock_slope : hint_range(0.1, 1.0) = 0.38;
+uniform vec3 sand_tint = vec3(1.04, 0.9, 0.72);
+uniform vec3 dirt_tint = vec3(0.88, 0.74, 0.58);
+uniform vec3 rock_tint = vec3(0.86, 0.78, 0.68);
 
 varying vec3 world_pos;
 varying vec3 world_n;
@@ -21,6 +22,34 @@ varying vec3 world_n;
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	float a = hash12(i);
+	float b = hash12(i + vec2(1.0, 0.0));
+	float c = hash12(i + vec2(0.0, 1.0));
+	float d = hash12(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+	float v = 0.0;
+	float a = 0.5;
+	for (int i = 0; i < 4; i++) {
+		v += vnoise(p) * a;
+		p = p * 2.07 + vec2(17.1, 9.3);
+		a *= 0.5;
+	}
+	return v;
 }
 
 vec4 sample_tri(sampler2D tex, vec3 p, vec3 n, float scale) {
@@ -33,27 +62,53 @@ vec4 sample_tri(sampler2D tex, vec3 p, vec3 n, float scale) {
 	return xaxis * blending.x + yaxis * blending.y + zaxis * blending.z;
 }
 
+vec3 sample_dual(sampler2D tex, vec3 p, vec3 n, float scale) {
+	vec3 detail = sample_tri(tex, p, n, scale).rgb;
+	vec3 macro = sample_tri(tex, p, n, scale * 0.17).rgb;
+	float w = 0.38 + 0.28 * fbm(p.xz * 0.011);
+	return mix(detail, macro, w);
+}
+
 void fragment() {
 	float slope = 1.0 - clamp(world_n.y, 0.0, 1.0);
-	float rock_w = smoothstep(0.12, rock_slope, slope);
-	float radial = length(world_pos.xz);
-	float sand_w = smoothstep(10.0, 30.0, radial) * (1.0 - rock_w);
-	float dirt_w = clamp(1.0 - rock_w - sand_w, 0.0, 1.0);
+	float rock_w = smoothstep(0.10, rock_slope, slope);
+	float height_rock = smoothstep(6.0, 16.0, world_pos.y);
+	rock_w = clamp(rock_w + height_rock * 0.55, 0.0, 1.0);
 
-	vec3 sand = sample_tri(sand_albedo, world_pos, world_n, uv_scale).rgb * sand_tint;
-	vec3 dirt = sample_tri(dirt_albedo, world_pos, world_n, uv_scale * 0.9).rgb * dirt_tint;
-	vec3 rock = sample_tri(rock_albedo, world_pos, world_n, uv_scale * 0.55).rgb;
-	ALBEDO = sand * sand_w + dirt * dirt_w + rock * rock_w;
+	float radial = length(world_pos.xz);
+	float macro = fbm(world_pos.xz * 0.016);
+	float path = fbm(world_pos.xz * 0.045 + vec2(8.0, 3.0));
+	float wash = smoothstep(0.42, 0.7, path);
+	float sand_w = clamp((0.28 + 0.72 * smoothstep(8.0, 34.0, radial) + macro * 0.2) * (1.0 - rock_w), 0.0, 1.0);
+	float dirt_w = clamp(1.0 - rock_w - sand_w, 0.0, 1.0);
+	dirt_w = clamp(dirt_w + wash * 0.35 * (1.0 - rock_w), 0.0, 1.0);
+	sand_w = clamp(1.0 - rock_w - dirt_w, 0.0, 1.0);
+
+	vec3 sand = sample_dual(sand_albedo, world_pos, world_n, uv_scale) * sand_tint;
+	vec3 dirt = sample_dual(dirt_albedo, world_pos, world_n, uv_scale * 0.92) * dirt_tint;
+	vec3 rock = sample_dual(rock_albedo, world_pos, world_n, uv_scale * 0.48) * rock_tint;
+
+	float blotch = smoothstep(0.32, 0.72, fbm(world_pos.xz * 0.028 + 12.0));
+	sand *= mix(vec3(1.06, 0.98, 0.86), vec3(0.62, 0.46, 0.32), blotch * 0.62);
+	dirt *= mix(vec3(1.0), vec3(0.62, 0.46, 0.32), (1.0 - blotch) * 0.4);
+
+	float specks = step(0.93, vnoise(world_pos.xz * 0.42));
+	float crust = step(0.88, vnoise(world_pos.xz * 0.09 + 4.0));
+	vec3 albedo = sand * sand_w + dirt * dirt_w + rock * rock_w;
+	albedo = mix(albedo, rock * 0.82, specks * 0.45 * (1.0 - rock_w));
+	albedo = mix(albedo, sand * vec3(1.08, 0.96, 0.8), crust * 0.22 * (1.0 - rock_w));
+
+	ALBEDO = albedo;
 
 	float rs = sample_tri(sand_rough, world_pos, world_n, uv_scale).r;
-	float rd = sample_tri(dirt_rough, world_pos, world_n, uv_scale * 0.9).r;
-	float rr = sample_tri(rock_rough, world_pos, world_n, uv_scale * 0.55).r;
-	ROUGHNESS = clamp(rs * sand_w + rd * dirt_w + rr * rock_w, 0.2, 1.0);
-	METALLIC = 0.02 * (1.0 - rock_w);
+	float rd = sample_tri(dirt_rough, world_pos, world_n, uv_scale * 0.92).r;
+	float rr = sample_tri(rock_rough, world_pos, world_n, uv_scale * 0.48).r;
+	ROUGHNESS = clamp(rs * sand_w + rd * dirt_w + rr * rock_w, 0.28, 1.0);
+	METALLIC = 0.015 * (1.0 - rock_w);
 
 	vec3 ns = sample_tri(sand_normal, world_pos, world_n, uv_scale).rgb;
-	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.9).rgb;
-	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.55).rgb;
+	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.92).rgb;
+	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.48).rgb;
 	NORMAL_MAP = ns * sand_w + nd * dirt_w + nr * rock_w;
-	NORMAL_MAP_DEPTH = 0.85;
+	NORMAL_MAP_DEPTH = 0.95;
 }

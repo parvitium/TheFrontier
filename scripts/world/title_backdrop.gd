@@ -12,36 +12,7 @@ static func build(root: Node3D) -> void:
 
 
 static func _ground(root: Node3D) -> void:
-	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(90, 90)
-	mesh.subdivide_width = 8
-	mesh.subdivide_depth = 8
-	var ground := MeshInstance3D.new()
-	ground.name = "Terrain"
-	ground.mesh = mesh
-	ground.material_override = PbrLibrary.terrain()
-	root.add_child(ground)
-	var body := StaticBody3D.new()
-	body.name = "GroundBody"
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(90, 1, 90)
-	col.shape = shape
-	col.position.y = -0.5
-	body.add_child(col)
-	root.add_child(body)
-	var spots := [
-		Vector3(10, 0, 8), Vector3(-12, 0, 11), Vector3(16, 0, -14),
-		Vector3(-18, 0, -10), Vector3(22, 0, 4), Vector3(-8, 0, 20),
-		Vector3(6, 0, -22), Vector3(-24, 0, 2),
-	]
-	var rocks := ["rock_a", "rock_b", "rock_c"]
-	for i in spots.size():
-		var inst := VisualKit.instance(rocks[i % rocks.size()])
-		if inst:
-			inst.position = spots[i]
-			inst.rotate_y(float(i) * 0.7)
-			root.add_child(inst)
+	Landscape.build(root, true)
 
 
 static func _outpost(root: Node3D) -> void:

@@ -34,6 +34,9 @@ static func has_slot(slot: String) -> bool:
 
 
 static func instance(slot: String) -> Node3D:
+	var built := KitFactory.build(slot)
+	if built:
+		return built
 	var path := path_for(slot)
 	if path == "" or not ResourceLoader.exists(path):
 		return null
