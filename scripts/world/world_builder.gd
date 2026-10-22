@@ -5,74 +5,112 @@ const MAP_SIZE := 72.0
 
 
 static func build(arena: Node3D) -> void:
-	_lighting(arena)
+	WorldLook.attach(arena, false)
 	_ground(arena)
 	_cover(arena)
+	_dressing(arena)
 	_core(arena)
 	_resources(arena)
 	_relics(arena)
 	_spawns(arena)
 
 
-static func _lighting(arena: Node3D) -> void:
-	var sun := DirectionalLight3D.new()
-	sun.name = "Sun"
-	sun.rotation_degrees = Vector3(-48, 42, 0)
-	sun.light_color = Color(1.0, 0.78, 0.58)
-	sun.light_energy = 1.35
-	sun.shadow_enabled = true
-	arena.add_child(sun)
-	var env := WorldEnvironment.new()
-	env.name = "WorldEnvironment"
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.08, 0.1, 0.14)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.22, 0.28, 0.36)
-	environment.ambient_light_energy = 0.55
-	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.16, 0.2, 0.26)
-	environment.fog_density = 0.008
-	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.glow_enabled = true
-	environment.glow_intensity = 0.35
-	var sky := Sky.new()
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.12, 0.18, 0.28)
-	sky_mat.sky_horizon_color = Color(0.62, 0.32, 0.18)
-	sky_mat.ground_bottom_color = Color(0.05, 0.06, 0.07)
-	sky_mat.ground_horizon_color = Color(0.28, 0.16, 0.1)
-	sky_mat.sun_angle_max = 18.0
-	sky.sky_material = sky_mat
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	env.environment = environment
-	arena.add_child(env)
-
-
 static func _ground(arena: Node3D) -> void:
 	var geo := arena.get_node("NavigationRegion3D/Geometry")
-	var ground_mat := Greybox.material(Color(0.22, 0.24, 0.2), Color.BLACK, 0.0, 0.0, 0.92)
-	Greybox.static_box(geo, Vector3(MAP_SIZE, 1.0, MAP_SIZE), Vector3(0, -0.5, 0), ground_mat, "Ground", 1)
-	var cliff := Greybox.material(Color(0.16, 0.17, 0.18), Color.BLACK, 0.0, 0.05, 0.88)
-	var half := MAP_SIZE * 0.5 + 1.5
-	Greybox.static_box(geo, Vector3(MAP_SIZE + 4, 6, 3), Vector3(0, 2.5, half), cliff, "CliffN", 1)
-	Greybox.static_box(geo, Vector3(MAP_SIZE + 4, 6, 3), Vector3(0, 2.5, -half), cliff, "CliffS", 1)
-	Greybox.static_box(geo, Vector3(3, 6, MAP_SIZE + 4), Vector3(half, 2.5, 0), cliff, "CliffE", 1)
-	Greybox.static_box(geo, Vector3(3, 6, MAP_SIZE + 4), Vector3(-half, 2.5, 0), cliff, "CliffW", 1)
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(MAP_SIZE, MAP_SIZE)
+	mesh.subdivide_width = 24
+	mesh.subdivide_depth = 24
+	var visual := MeshInstance3D.new()
+	visual.name = "Terrain"
+	visual.mesh = mesh
+	visual.material_override = PbrLibrary.terrain()
+	geo.add_child(visual)
+	var body := StaticBody3D.new()
+	body.name = "Ground"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(MAP_SIZE, 1.0, MAP_SIZE)
+	col.shape = shape
+	col.position.y = -0.5
+	body.add_child(col)
+	geo.add_child(body)
+	var rock_mat := PbrLibrary.rock(Color(0.85, 0.82, 0.78))
+	var half := MAP_SIZE * 0.5 + 1.8
+	_cliff(geo, Vector3(MAP_SIZE + 4, 7.5, 4.2), Vector3(0, 3.2, half), rock_mat, "CliffN")
+	_cliff(geo, Vector3(MAP_SIZE + 4, 7.5, 4.2), Vector3(0, 3.2, -half), rock_mat, "CliffS")
+	_cliff(geo, Vector3(4.2, 7.5, MAP_SIZE + 4), Vector3(half, 3.2, 0), rock_mat, "CliffE")
+	_cliff(geo, Vector3(4.2, 7.5, MAP_SIZE + 4), Vector3(-half, 3.2, 0), rock_mat, "CliffW")
+
+
+static func _cliff(parent: Node3D, size: Vector3, position: Vector3, mat: Material, name: String) -> void:
+	var body := StaticBody3D.new()
+	body.name = name
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = position
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	col.shape = shape
+	body.add_child(col)
+	parent.add_child(body)
+	var along := size.x if size.x >= size.z else size.z
+	var count := 11
+	for i in count:
+		var t := (float(i) / float(count - 1) - 0.5) * along * 0.92
+		var offset := Vector3(t, 0, 0) if size.x >= size.z else Vector3(0, 0, t)
+		var inst := VisualKit.instance(["rock_a", "rock_b", "rock_c"][i % 3])
+		if inst:
+			var ground := Vector3(position.x, 0.0, position.z) + offset
+			inst.position = ground
+			var s := 2.8 + float(i % 3) * 0.55
+			inst.scale = Vector3(s, 3.4 + float(i % 2) * 1.1, s)
+			inst.rotate_y(float(i) * 0.73)
+			parent.add_child(inst)
+		elif i == 0:
+			Greybox.static_box(parent, size, position, mat, "%s_vis" % name, 1)
 
 
 static func _cover(arena: Node3D) -> void:
 	var geo := arena.get_node("NavigationRegion3D/Geometry")
-	var rock := Greybox.material(Color(0.3, 0.31, 0.29), Color.BLACK, 0.0, 0.05, 0.86)
 	var spots := [
-		Vector3(12, 0.7, 8), Vector3(-14, 0.9, 11), Vector3(18, 0.6, -16),
-		Vector3(-20, 0.8, -12), Vector3(8, 0.5, -22), Vector3(-9, 0.7, 20),
-		Vector3(24, 0.8, 6), Vector3(-26, 0.6, -4),
+		Vector3(12, 0, 8), Vector3(-14, 0, 11), Vector3(18, 0, -16),
+		Vector3(-20, 0, -12), Vector3(8, 0, -22), Vector3(-9, 0, 20),
+		Vector3(24, 0, 6), Vector3(-26, 0, -4),
 	]
+	var rocks := ["rock_a", "rock_b", "rock_c"]
 	for i in spots.size():
 		var p: Vector3 = spots[i]
-		Greybox.static_box(geo, Vector3(2.4 + i % 2, 1.4 + (i % 3) * 0.3, 1.8), p, rock, "Cover_%d" % i, 1)
+		var inst := VisualKit.instance(rocks[i % rocks.size()])
+		if inst:
+			inst.position = p
+			inst.rotate_y(float(i) * 0.55)
+			inst.scale = Vector3(1.2 + float(i % 3) * 0.15, 1.0 + float(i % 2) * 0.2, 1.15)
+			geo.add_child(inst)
+			var body := StaticBody3D.new()
+			body.name = "Cover_%d" % i
+			body.collision_layer = 1
+			body.collision_mask = 0
+			body.position = p + Vector3(0, 0.7, 0)
+			var col := CollisionShape3D.new()
+			var shape := BoxShape3D.new()
+			shape.size = Vector3(2.2, 1.4, 1.8)
+			col.shape = shape
+			body.add_child(col)
+			geo.add_child(body)
+		else:
+			Greybox.static_box(geo, Vector3(2.4, 1.4, 1.8), p + Vector3(0, 0.7, 0), PbrLibrary.rock(), "Cover_%d" % i, 1)
+
+
+static func _dressing(arena: Node3D) -> void:
+	for p in [Vector3(15, 0, 18), Vector3(-17, 0, -16)]:
+		var tank := VisualKit.instance("storage_tank")
+		if tank:
+			tank.position = p
+			arena.add_child(tank)
 
 
 static func _core(arena: Node3D) -> void:

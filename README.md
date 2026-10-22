@@ -2,7 +2,7 @@
 
 First-person sci-fi shooter and base defense. You hold a planetary basin around a living **core**. Mobs come in rest/wave cycles. During both phases you gather scrap and crystal, build walls, turrets, traps, and utility, and fight on foot.
 
-This repository is a playable Godot 4.7 vertical slice. Meshes are greybox primitives named so Blender `.glb` assets can replace them later.
+This repository is a playable Godot 4.7 vertical slice with PBR materials, kitbashed sci-fi meshes, a cinematic title screen, and AgX lighting.
 
 ## Requirements
 
@@ -63,11 +63,13 @@ Player death: you drop 15% of carried scrap and respawn at the core after 5 seco
 | Repair Beacon | 20 scrap, 15 crystal | Heals core, buildings, player |
 | Escape Ship | 80 scrap, 40 crystal | Escape mode only |
 
-## Placeholders
+## Art
 
-All art is self-made CSG-style primitives. Swap later by replacing the `Visual` child on a prefab (`asset_slot` metadata). See `assets/placeholders/README.md` and `docs/AGENT_CONTEXT.md`.
+PBR textures and the dusk HDRI are CC0 from Poly Haven. Buildings, mobs, the core, and first-person weapons are original Blender kit pieces instanced under each actor's `Visual` node (`asset_slot` metadata). Sources and licenses: `ASSETS.md`.
 
-No third-party audio, textures, or models are included. Code is MIT (`LICENSE`). Engine: Godot 4.7.2 (MIT). Greybox primitives are original.
+The title screen is a cinematic 3D outpost (Play with mode select, Settings, Credits, Quit). Settings cover mouse sensitivity, FOV, volume, and graphics quality.
+
+Code is MIT (`LICENSE`). Engine: Godot 4.7.2 (MIT).
 
 ## Tests and CI
 

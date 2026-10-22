@@ -21,6 +21,7 @@ func _ready() -> void:
 	_session_death_and_respawn()
 	_session_pause()
 	_resource_restock()
+	_settings_and_visuals()
 	print("Passed: %d  Failed: %d" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -413,3 +414,31 @@ func _resource_restock() -> void:
 	node.restock()
 	_ok(node.remaining == 12, "empty nodes still restock")
 	node.free()
+
+
+func _settings_and_visuals() -> void:
+	print("settings and visuals")
+	var prev_q: int = GameSettings.quality
+	var prev_fov: float = GameSettings.fov
+	var prev_sens: float = GameSettings.mouse_sensitivity
+	GameSettings.set_quality(GameSettings.Quality.LOW)
+	_ok(GameSettings.quality == GameSettings.Quality.LOW, "quality low")
+	GameSettings.set_quality(GameSettings.Quality.ULTRA)
+	_ok(GameSettings.quality == GameSettings.Quality.ULTRA, "quality ultra")
+	GameSettings.set_fov(90.0)
+	_ok(is_equal_approx(GameSettings.fov, 90.0), "fov set")
+	GameSettings.set_mouse_sensitivity(1.4)
+	_ok(is_equal_approx(GameSettings.mouse_sensitivity, 1.4), "sensitivity set")
+	var env := WorldLook.make_environment(false)
+	_ok(env.tonemap_mode == Environment.TONE_MAPPER_AGX, "AgX tonemapper")
+	_ok(env.glow_enabled, "glow enabled on env")
+	GameSettings.apply_environment(env)
+	_ok(VisualKit.has_slot("core_engine"), "core kit present")
+	_ok(VisualKit.has_slot("building_wall"), "wall kit present")
+	_ok(VisualKit.has_slot("mob_rusher"), "rusher kit present")
+	_ok(VisualKit.has_slot("pulse_rifle"), "rifle kit present")
+	var metal := PbrLibrary.metal()
+	_ok(metal != null and metal.metallic > 0.4, "pbr metal material")
+	GameSettings.set_quality(prev_q)
+	GameSettings.set_fov(prev_fov)
+	GameSettings.set_mouse_sensitivity(prev_sens)

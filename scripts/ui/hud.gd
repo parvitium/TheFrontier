@@ -19,6 +19,12 @@ func _ready() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+	var plate := Panel.new()
+	plate.position = Vector2(12, 10)
+	plate.size = Vector2(420, 168)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_theme_stylebox_override("panel", ThemeUtil.panel(Color(0.03, 0.04, 0.05, 0.55)))
+	root.add_child(plate)
 	_phase = _label(root, Vector2(20, 16), 20, Color(0.85, 0.9, 0.88))
 	_objective = _label(root, Vector2(20, 44), 16, Color(0.7, 0.78, 0.74))
 	_core = _label(root, Vector2(20, 72), 16, Color(1.0, 0.78, 0.32))

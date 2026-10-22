@@ -108,6 +108,7 @@ func try_place() -> void:
 		var arena := _arena()
 		if arena:
 			BuildingFactory.spawn(arena, current().id, _origin, int(result.serial))
+		Sfx.play("place_build", 0.95)
 		last_reason = "Placed %s." % current().display_name
 	else:
 		last_reason = result.reason

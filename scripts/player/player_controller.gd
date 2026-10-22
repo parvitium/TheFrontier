@@ -48,8 +48,10 @@ func _build_body() -> void:
 	_camera = Camera3D.new()
 	_camera.name = "Camera3D"
 	_camera.position = Vector3(0, 1.55, 0)
-	_camera.fov = 78.0
+	_camera.fov = GameSettings.fov
 	add_child(_camera)
+	if not GameSettings.changed.is_connected(_apply_look_settings):
+		GameSettings.changed.connect(_apply_look_settings)
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "player")
@@ -60,8 +62,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _is_headless() or not Session.state.player_alive or get_tree().paused:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENS)
-		look_pitch = clampf(look_pitch - event.relative.y * MOUSE_SENS, deg_to_rad(-85.0), deg_to_rad(85.0))
+		var sens := MOUSE_SENS * GameSettings.mouse_sensitivity
+		rotate_y(-event.relative.x * sens)
+		look_pitch = clampf(look_pitch - event.relative.y * sens, deg_to_rad(-85.0), deg_to_rad(85.0))
 		_camera.rotation.x = look_pitch
 	if event.is_action_pressed("build_mode"):
 		_toggle_build()
@@ -167,6 +170,11 @@ func _sync_health(current: float, maximum: float) -> void:
 		health.max_health = maximum
 		health.current = current
 		health.dead = current <= 0.0
+
+
+func _apply_look_settings() -> void:
+	if _camera:
+		_camera.fov = GameSettings.fov
 
 
 func _is_headless() -> bool:

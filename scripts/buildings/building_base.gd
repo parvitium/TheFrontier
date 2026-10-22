@@ -55,7 +55,9 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 
 
 func _build_visual(visual: Node3D, def: BuildingDef, size: Vector3) -> void:
-	var mesh := Greybox.box(size, Greybox.material(def.color, def.color, 0.25, 0.15, 0.55), "Hull")
+	if VisualKit.fill(visual, "building_%s" % def.id) != null:
+		return
+	var mesh := Greybox.box(size, PbrLibrary.metal(def.color, 0.35, 0.9), "Hull")
 	mesh.position.y = size.y * 0.5
 	visual.add_child(mesh)
 

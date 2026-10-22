@@ -10,7 +10,7 @@ var life: float = 3.0
 func _ready() -> void:
 	collision_layer = 16
 	collision_mask = 1 | 2 | 8 | 32
-	var visual := Greybox.sphere(0.12, Greybox.material(Color(0.85, 0.3, 1.0), Color(0.8, 0.3, 1.0), 3.0, 0.0, 0.2), "Bolt")
+	var visual := Greybox.sphere(0.12, PbrLibrary.emissive(Color(0.85, 0.3, 1.0), 8.0), "Bolt")
 	add_child(visual)
 	var col := CollisionShape3D.new()
 	var shape := SphereShape3D.new()

@@ -10,9 +10,10 @@ func _ready() -> void:
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "signal_relic")
-	var body := Greybox.box(Vector3(0.7, 0.7, 0.7), Greybox.material(Color(0.95, 0.82, 0.28), Color(1.0, 0.85, 0.3), 2.8, 0.4, 0.25), "Relic")
-	body.position.y = 0.7
-	visual.add_child(body)
+	if VisualKit.fill(visual, "signal_relic") == null:
+		var body := Greybox.box(Vector3(0.7, 0.7, 0.7), PbrLibrary.emissive(Color(1.0, 0.85, 0.3), 5.0), "Relic")
+		body.position.y = 0.7
+		visual.add_child(body)
 	add_child(visual)
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()

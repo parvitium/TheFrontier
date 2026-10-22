@@ -8,9 +8,10 @@ var _area: Area3D
 
 
 func _build_visual(visual: Node3D, def: BuildingDef, _size: Vector3) -> void:
-	var pad := Greybox.box(Vector3(1.8, 0.12, 1.8), Greybox.material(def.color, Color(0.9, 0.2, 0.15), 0.8, 0.1, 0.55), "Pad")
-	pad.position.y = 0.06
-	visual.add_child(pad)
+	if VisualKit.fill(visual, "building_trap") == null:
+		var pad := Greybox.box(Vector3(1.8, 0.12, 1.8), PbrLibrary.metal(def.color, 0.4, 0.8), "Pad")
+		pad.position.y = 0.06
+		visual.add_child(pad)
 	_area = Area3D.new()
 	_area.collision_layer = 0
 	_area.collision_mask = 4

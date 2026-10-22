@@ -1,21 +1,18 @@
-# Placeholder visuals
+# Visual slots
 
-Every spawned actor builds a child named `Visual` with `asset_slot` metadata. That node is the swap point for a Blender export.
+Actors still spawn a `Visual` child with `asset_slot` metadata. `VisualKit` instances the matching `.glb` from `assets/models/` and remaps materials to CC0 PBR sets.
 
-Suggested slots:
+| Slot | File |
+| --- | --- |
+| `core_engine` | `core_engine.glb` |
+| `building_wall` | `wall.glb` |
+| `building_turret` | `turret.glb` (`Head`, `Muzzle`) |
+| `building_trap` | `trap.glb` |
+| `building_repair_beacon` | `repair_beacon.glb` |
+| `building_escape_ship` | `escape_ship.glb` |
+| `mob_rusher` / `mob_ranger` / `mob_tank` | matching `mob_*.glb` |
+| `pulse_rifle` / `scatter_cannon` | weapons with `Muzzle` |
+| `resource_scrap` / `resource_crystal` | `scrap.glb` / `crystal.glb` |
+| `signal_relic` | `relic.glb` |
 
-- `core_engine`
-- `player`
-- `building_wall`, `building_turret`, `building_trap`, `building_repair_beacon`, `building_escape_ship`
-- `mob_rusher`, `mob_ranger`, `mob_tank`
-- `resource_scrap`, `resource_crystal`
-- `signal_relic`
-
-Workflow:
-
-1. Model in Blender at 1 unit = 1 meter. Origin at ground center.
-2. Export glTF Binary (`.glb`), Y-up, no paid kits.
-3. Instance the `.glb` under `Visual` and hide or delete the primitive `MeshInstance3D`.
-4. Keep collision shapes in code or in a sibling `CollisionShape3D` so gameplay does not depend on art bounds.
-
-All current meshes are original greybox primitives. No third-party packs.
+Collision stays in code. Sources: `ASSETS.md`.

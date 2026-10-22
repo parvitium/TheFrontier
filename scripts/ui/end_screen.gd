@@ -74,7 +74,9 @@ func _menu() -> void:
 
 
 func _btn(parent: Control, text: String, cb: Callable) -> void:
-	var button := Button.new()
-	button.text = text
-	button.pressed.connect(cb)
+	var button := ThemeUtil.menu_button(text)
+	button.pressed.connect(func() -> void:
+		Sfx.play("ui_click")
+		cb.call()
+	)
 	parent.add_child(button)

@@ -24,8 +24,9 @@ SOFTWARE.
 
 ## Assets
 
-All art in this repository is original greybox geometry generated in Godot
-(CSG-style primitives under `Visual` nodes). No third-party models, textures,
-audio, or paid asset packs are included.
+Third-party textures and the dusk HDRI are CC0 1.0 from Poly Haven.
+Original meshes were authored in Blender (`tools/blender_kit.py`).
+Original UI/weapon sounds were synthesized (`tools/make_sfx.py`).
+See `ASSETS.md` for the full source list. No paid packs are included.
 
 The Godot Engine is MIT-licensed: https://godotengine.org/license
