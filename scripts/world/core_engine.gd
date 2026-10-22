@@ -10,16 +10,17 @@ func _ready() -> void:
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "core_engine")
-	var pedestal := Greybox.cylinder(1.6, 1.1, Greybox.material(Color(0.22, 0.26, 0.3), Color.BLACK, 0.0, 0.35, 0.4), "Pedestal")
-	pedestal.position.y = 0.55
-	visual.add_child(pedestal)
-	var coil := Greybox.cylinder(0.45, 2.2, Greybox.material(Color(0.18, 0.55, 0.58), Color(0.2, 0.9, 0.85), 1.4, 0.6, 0.25), "Coil")
-	coil.position.y = 1.9
-	visual.add_child(coil)
-	var heart := Greybox.sphere(0.7, Greybox.material(Color(0.95, 0.72, 0.2), Color(1.0, 0.7, 0.15), 3.5, 0.1, 0.2), "Heart")
-	heart.position.y = 3.1
-	heart.name = "Heart"
-	visual.add_child(heart)
+	if VisualKit.fill(visual, "core_engine") == null:
+		var pedestal := Greybox.cylinder(1.6, 1.1, PbrLibrary.concrete(), "Pedestal")
+		pedestal.position.y = 0.55
+		visual.add_child(pedestal)
+		var coil := Greybox.cylinder(0.45, 2.2, PbrLibrary.metal(Color(0.4, 0.7, 0.75), 0.7, 0.7), "Coil")
+		coil.position.y = 1.9
+		visual.add_child(coil)
+		var heart := Greybox.sphere(0.7, PbrLibrary.emissive(Color(1.0, 0.7, 0.15), 6.0), "Heart")
+		heart.position.y = 3.1
+		heart.name = "Heart"
+		visual.add_child(heart)
 	add_child(visual)
 	var col := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
@@ -29,9 +30,10 @@ func _ready() -> void:
 	col.position.y = 1.6
 	add_child(col)
 	var light := OmniLight3D.new()
+	light.name = "OmniLight3D"
 	light.omni_range = 16.0
-	light.light_color = Color(1.0, 0.78, 0.35)
-	light.light_energy = 2.2
+	light.light_color = Color(1.0, 0.72, 0.28)
+	light.light_energy = 3.4
 	light.position.y = 3.1
 	add_child(light)
 	var health := Health.new()
@@ -42,7 +44,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	var heart := get_node_or_null("Visual/Heart") as Node3D
+	var heart := VisualKit.find_node(self, "Heart")
 	if heart:
 		heart.rotate_y(delta * 0.8)
 	var ratio := 1.0
@@ -50,7 +52,7 @@ func _process(delta: float) -> void:
 		ratio = Session.state.core_health / Session.state.core_max_health
 	var light := get_node_or_null("OmniLight3D") as OmniLight3D
 	if light:
-		light.light_energy = 1.0 + 2.2 * ratio
+		light.light_energy = 1.2 + 3.0 * ratio
 
 
 func _sync_health(current: float, maximum: float) -> void:

@@ -21,12 +21,14 @@ func configure(p_type: String, amount: int, interval: float, color: Color, emiss
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "resource_%s" % resource_type)
-	if resource_type == Ids.CRYSTAL:
-		visual.add_child(Greybox.cylinder(0.35, 1.4, Greybox.material(color, emission, 2.4, 0.15, 0.18), "Crystal"))
-		visual.get_child(0).position.y = 0.7
-	else:
-		visual.add_child(Greybox.box(Vector3(1.1, 0.7, 0.9), Greybox.material(color, emission, 0.4, 0.2, 0.85), "Scrap"))
-		visual.get_child(0).position.y = 0.35
+	var slot := "resource_crystal" if resource_type == Ids.CRYSTAL else "resource_scrap"
+	if VisualKit.fill(visual, slot) == null:
+		if resource_type == Ids.CRYSTAL:
+			visual.add_child(Greybox.cylinder(0.35, 1.4, PbrLibrary.emissive(emission, 5.0), "Crystal"))
+			visual.get_child(0).position.y = 0.7
+		else:
+			visual.add_child(Greybox.box(Vector3(1.1, 0.7, 0.9), PbrLibrary.rust(color), "Scrap"))
+			visual.get_child(0).position.y = 0.35
 	add_child(visual)
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()

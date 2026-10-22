@@ -8,14 +8,19 @@ const DAMAGE := 15.0
 var _head: Node3D
 
 
-func _build_visual(visual: Node3D, def: BuildingDef, size: Vector3) -> void:
-	var base := Greybox.cylinder(0.55, 0.45, Greybox.material(def.color.darkened(0.2), Color.BLACK, 0.0, 0.3, 0.4), "Base")
+func _build_visual(visual: Node3D, def: BuildingDef, _size: Vector3) -> void:
+	if VisualKit.fill(visual, "building_turret") != null:
+		_head = VisualKit.find_node(visual, "Head")
+		if _head == null:
+			_head = visual
+		return
+	var base := Greybox.cylinder(0.55, 0.45, PbrLibrary.concrete(def.color.darkened(0.2)), "Base")
 	base.position.y = 0.22
 	visual.add_child(base)
-	_head = Greybox.box(Vector3(0.45, 0.28, 0.9), Greybox.material(def.color, Color(0.4, 0.9, 1.0), 1.2, 0.4, 0.3), "Head")
+	_head = Greybox.box(Vector3(0.45, 0.28, 0.9), PbrLibrary.metal(def.color, 0.55, 0.7), "Head")
 	_head.position.y = 1.05
 	visual.add_child(_head)
-	var pole := Greybox.cylinder(0.12, 0.8, Greybox.material(Color(0.25, 0.28, 0.3), Color.BLACK, 0.0, 0.4, 0.35), "Pole")
+	var pole := Greybox.cylinder(0.12, 0.8, PbrLibrary.metal(Color(0.3, 0.32, 0.34)), "Pole")
 	pole.position.y = 0.7
 	visual.add_child(pole)
 
@@ -33,7 +38,11 @@ func _physics_process(_delta: float) -> void:
 		if dir.length() > 0.05 and absf(dir.normalized().dot(Vector3.UP)) < 0.995:
 			_head.look_at(look, Vector3.UP)
 	if _has_line_of_sight(target):
-		Session.cmd_try_turret_fire(serial, target, DAMAGE, INTERVAL)
+		if Session.cmd_try_turret_fire(serial, target, DAMAGE, INTERVAL):
+			var muzzle := VisualKit.find_node(self, "Muzzle")
+			var from := muzzle.global_position if muzzle else global_position + Vector3(0, 1.15, 0)
+			CombatFx.tracer(get_tree().current_scene, from, target.global_position + Vector3(0, 1.0, 0), Color(0.4, 0.95, 1.0))
+			Sfx.play("turret_shot", randf_range(0.92, 1.08))
 
 
 func _has_line_of_sight(target: Node3D) -> bool:

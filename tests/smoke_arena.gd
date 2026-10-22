@@ -20,8 +20,10 @@ func _ready() -> void:
 	Session.selected_mode_id = _mode
 	Session.start_run(_mode)
 	_wall_start = Time.get_ticks_msec()
+	var boot := Time.get_ticks_msec()
 	var arena: Node = load("res://scenes/world/arena.tscn").instantiate()
 	add_child(arena)
+	print("ARENA INSTANTIATE_MS=", Time.get_ticks_msec() - boot)
 	call_deferred("_spawn_probe_mob")
 
 
@@ -44,7 +46,7 @@ func _spawn_probe_mob() -> void:
 	mob.name = "SmokeProbeMob"
 	mob.configure(def)
 	arena.add_child(mob)
-	mob.global_position = Vector3(12, 0.2, 0)
+	mob.global_position = Landscape.seat(Vector3(12, 0, 0), 0.2)
 	Session.cmd_mob_spawned()
 	_probe = mob
 	await get_tree().physics_frame

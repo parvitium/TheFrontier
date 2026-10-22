@@ -18,7 +18,7 @@ Godot 4.7.2 GDScript prototype. Owner: Adam. First-person shooter plus core defe
 | `tests/run_tests.gd` | Headless Session + rules assertions |
 | `tests/smoke_arena.gd` | Headless arena boot for real seconds |
 
-Greybox helpers live in `scripts/world/greybox.gd`. Every placeholder root is named `Visual` and has `asset_slot` metadata (`core_engine`, `building_wall`, `mob_rusher`, …). Drop a Blender `.glb` in as that child and hide the primitive mesh.
+Kit meshes are built by `KitFactory` (with `.glb` fallbacks) and instanced by `VisualKit` under each actor's `Visual` node (`asset_slot` metadata). Walls are HESCO / T-wall / plate fortification. `Landscape` generates one badlands heightfield plus baked butte meshes. PBR maps and the `qwantani_dusk_2_puresky` HDRI are applied in `PbrLibrary` / `WorldLook`. Greybox helpers in `scripts/world/greybox.gd` remain as fallbacks if a kit piece is missing. Regenerating bakes: `godot --headless --path . --scene res://tools/bake_landscape.tscn`.
 
 ## State vs presentation
 
@@ -88,4 +88,4 @@ Endless spawns `relics_on_map` signal relics. Pickups add score only; they do no
 
 ## What is intentionally unfinished
 
-No audio. No cooked Blender assets. No save/load. No networking. No controller glyphs. Turret/trap VFX are lights and primitives. See `docs/roadmap.md`.
+No save/load. No networking. No controller glyphs. Presentation now includes PBR, kit meshes, title-screen audio, tracers, and a settings autoload (`GameSettings`). See `docs/roadmap.md` and `ASSETS.md`.

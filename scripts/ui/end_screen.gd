@@ -26,11 +26,11 @@ func _ready() -> void:
 	center.add_child(box)
 	_title = Label.new()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title.add_theme_font_size_override("font_size", 34)
+	ThemeUtil.readable_font(_title, Color(0.92, 0.94, 0.9), 34)
 	box.add_child(_title)
 	_stats = Label.new()
 	_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_stats.add_theme_font_size_override("font_size", 16)
+	ThemeUtil.readable_font(_stats, Color(0.85, 0.86, 0.8), 16)
 	box.add_child(_stats)
 	_btn(box, "Restart mode", _restart)
 	_btn(box, "Main menu", _menu)
@@ -74,7 +74,9 @@ func _menu() -> void:
 
 
 func _btn(parent: Control, text: String, cb: Callable) -> void:
-	var button := Button.new()
-	button.text = text
-	button.pressed.connect(cb)
+	var button := ThemeUtil.menu_button(text)
+	button.pressed.connect(func() -> void:
+		Sfx.play("ui_click")
+		cb.call()
+	)
 	parent.add_child(button)

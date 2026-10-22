@@ -21,6 +21,8 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	add_to_group("damageable")
 	collision_layer = 4
 	collision_mask = 1 | 2 | 8 | 32
+	floor_max_angle = deg_to_rad(52.0)
+	floor_snap_length = 0.35
 	var col := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = def.radius
@@ -31,12 +33,13 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "mob_%s" % def.id)
-	var body := Greybox.cylinder(def.radius, def.height * 0.7, Greybox.material(def.color, def.color, 0.35, 0.1, 0.55), "Body")
-	body.position.y = def.height * 0.45
-	visual.add_child(body)
-	var head := Greybox.sphere(def.radius * 0.7, Greybox.material(def.color.lightened(0.15), def.color, 0.6, 0.05, 0.4), "Head")
-	head.position.y = def.height * 0.92
-	visual.add_child(head)
+	if VisualKit.fill(visual, "mob_%s" % def.id) == null:
+		var body := Greybox.cylinder(def.radius, def.height * 0.7, PbrLibrary.flesh(def.color), "Body")
+		body.position.y = def.height * 0.45
+		visual.add_child(body)
+		var head := Greybox.sphere(def.radius * 0.7, PbrLibrary.flesh(def.color.lightened(0.15)), "Head")
+		head.position.y = def.height * 0.92
+		visual.add_child(head)
 	add_child(visual)
 	_agent = NavigationAgent3D.new()
 	_agent.path_desired_distance = 0.55

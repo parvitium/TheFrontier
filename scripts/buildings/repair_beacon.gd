@@ -8,10 +8,12 @@ const PLAYER_HPS := 3.0
 
 
 func _build_visual(visual: Node3D, def: BuildingDef, _size: Vector3) -> void:
-	var dish := Greybox.cylinder(0.7, 0.25, Greybox.material(def.color, Color(0.3, 1.0, 0.5), 1.5, 0.2, 0.35), "Dish")
+	if VisualKit.fill(visual, "building_repair_beacon") != null:
+		return
+	var dish := Greybox.cylinder(0.7, 0.25, PbrLibrary.emissive(Color(0.3, 1.0, 0.5), 3.0), "Dish")
 	dish.position.y = 1.3
 	visual.add_child(dish)
-	var stem := Greybox.cylinder(0.14, 1.2, Greybox.material(Color(0.3, 0.34, 0.32), Color.BLACK, 0.0, 0.3, 0.4), "Stem")
+	var stem := Greybox.cylinder(0.14, 1.2, PbrLibrary.metal(Color(0.35, 0.38, 0.36)), "Stem")
 	stem.position.y = 0.6
 	visual.add_child(stem)
 

@@ -8,10 +8,8 @@ Playable FPS + core defense loop with four data-driven modes, three mobs, four s
 
 ### Feel and presentation
 
-- Replace `Visual` greyboxes with Blender `.glb` kits (core, walls, turret, trap, beacon, ship, three mobs, rifle, shotgun, scrap, crystal, relics).
-- Animation: mob run/attack, turret yaw, ship land, player arms.
-- Audio: fire, reload, gather, place, wave stinger, core alarm (CC0 or original only).
-- Recoil, muzzle tracers, hit sparks, damage numbers, core heat shader.
+- Kit meshes, PBR, dusk HDRI, AgX, SSAO, volumetric fog, bloom, title screen, settings, muzzle/tracer/impact, and original UI/gun audio landed on the realistic-visuals stack.
+- Next: attack clips, ship land, fuller first-person arms, reload/gather/wave stingers, damage numbers, core heat shader.
 - Controller support and remappable input.
 
 ### Systems

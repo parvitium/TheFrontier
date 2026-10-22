@@ -65,7 +65,7 @@ func _spawn(item: Dictionary) -> void:
 func _spawn_point() -> Vector3:
 	var holder := get_parent().get_node_or_null("SpawnPoints")
 	if holder == null or holder.get_child_count() == 0:
-		return Vector3(28, 0.2, 0)
+		return Landscape.seat(Vector3(28, 0, 0), 0.2)
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	var best: Node3D = holder.get_child(0)
 	var best_d := -1.0
@@ -77,4 +77,4 @@ func _spawn_point() -> Vector3:
 			if d > best_d:
 				best_d = d
 				best = child
-	return best.global_position + Vector3(0, 0.15, 0)
+	return Landscape.seat(best.global_position, 0.2)

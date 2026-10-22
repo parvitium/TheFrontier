@@ -28,7 +28,8 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	add_to_group("damageable")
 	collision_mask = 0
 	var size := footprint_collider_size(def.footprint)
-	position = PlacementRules.cell_to_world(origin, 0.0) + Vector3((def.footprint.x - 1) * PlacementRules.CELL_SIZE * 0.5, 0, (def.footprint.y - 1) * PlacementRules.CELL_SIZE * 0.5)
+	var seated := PlacementRules.building_world_position(origin, def.footprint)
+	transform = Transform3D(PlacementRules.foundation_basis(seated.x, seated.z), seated)
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "building_%s" % def.id)
@@ -55,7 +56,9 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 
 
 func _build_visual(visual: Node3D, def: BuildingDef, size: Vector3) -> void:
-	var mesh := Greybox.box(size, Greybox.material(def.color, def.color, 0.25, 0.15, 0.55), "Hull")
+	if VisualKit.fill(visual, "building_%s" % def.id) != null:
+		return
+	var mesh := Greybox.box(size, PbrLibrary.metal(def.color, 0.35, 0.9), "Hull")
 	mesh.position.y = size.y * 0.5
 	visual.add_child(mesh)
 
