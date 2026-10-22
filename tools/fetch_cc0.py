@@ -24,6 +24,7 @@ TEXTURES = {
     "rusty_metal_02": ["Diffuse", "nor_gl", "Rough", "Metal", "AO"],
     "concrete_floor_02": ["Diffuse", "nor_gl", "Rough", "AO"],
     "rock_face": ["Diffuse", "nor_gl", "Rough", "AO"],
+    "rock_08": ["Diffuse", "nor_gl", "Rough", "AO"],
     "ground_003": ["Diffuse", "nor_gl", "Rough", "AO"],
     "sand_01": ["Diffuse", "nor_gl", "Rough", "AO"],
 }
@@ -37,6 +38,7 @@ RES = {
     "rusty_metal_02": "1k",
     "concrete_floor_02": "1k",
     "rock_face": "2k",
+    "rock_08": "1k",
     "ground_003": "2k",
     "sand_01": "2k",
 }

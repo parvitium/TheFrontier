@@ -5,10 +5,14 @@ extends RefCounted
 
 const WORLD_SIZE := 520.0
 const PLAY_RADIUS := 38.0
-const GRID := 110
 const MAP_COLLISION := 72.0
 const COL_VERTS := 73
-const PLAY_QUADS := 96
+const PLAY_QUADS := 80
+const NEAR_SIZE := 20.0
+const NEAR_QUADS := 72
+const MID_SIZE := 240.0
+const MID_QUADS := 56
+const FAR_QUADS := 28
 const FOUNDATION_SINK := 0.04
 
 
@@ -113,23 +117,23 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 	if inst == null:
 		return null
 	var ground_y := height_at(pos.x, pos.z)
-	var sx := rng.randf_range(0.7, 1.85)
-	var sy := rng.randf_range(0.55, 1.35)
-	var sz := rng.randf_range(0.7, 1.75)
+	var sx := rng.randf_range(0.55, 1.05)
+	var sy := rng.randf_range(0.72, 1.25)
+	var sz := rng.randf_range(0.55, 1.05)
 	inst.scale = Vector3(sx, sy, sz)
-	inst.rotation = Vector3(rng.randf_range(-0.22, 0.22), rng.randf_range(0.0, TAU), rng.randf_range(-0.16, 0.16))
-	inst.position = Vector3(pos.x, ground_y - sy * 0.12, pos.z)
+	inst.rotation = Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(0.0, TAU), rng.randf_range(-0.06, 0.06))
+	inst.position = Vector3(pos.x, ground_y - sy * 0.22, pos.z)
 	parent.add_child(inst)
-	_dust_skirt(parent, Vector3(pos.x, ground_y + 0.02, pos.z), maxf(sx, sz) * 1.15, sy)
+	_dust_skirt(parent, Vector3(pos.x, ground_y + 0.015, pos.z), maxf(sx, sz) * 0.72, sy)
 	if collide:
 		var body := StaticBody3D.new()
 		body.name = "RockCol_%d" % seed
 		body.collision_layer = 1
 		body.collision_mask = 0
-		body.position = Vector3(pos.x, ground_y + sy * 0.35, pos.z)
+		body.position = Vector3(pos.x, ground_y + sy * 0.28, pos.z)
 		var col := CollisionShape3D.new()
 		var shape := SphereShape3D.new()
-		shape.radius = maxf(sx, sz) * 0.55
+		shape.radius = maxf(sx, sz) * 0.48
 		col.shape = shape
 		body.add_child(col)
 		parent.add_child(body)
@@ -137,58 +141,73 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 
 
 static func _terrain_mesh(parent: Node3D) -> void:
-	_grid_mesh(parent, "Terrain", WORLD_SIZE, GRID, true)
-	_grid_mesh(parent, "Playfield", MAP_COLLISION, PLAY_QUADS, false)
+	var near := _grid_mesh(parent, "NearSand", NEAR_SIZE, NEAR_QUADS, 0.0, 0.18)
+	near.position.y = 0.006
+	_grid_mesh(parent, "Playfield", MAP_COLLISION, PLAY_QUADS, NEAR_SIZE * 0.5, 0.35)
+	var mid := _grid_mesh(parent, "TerrainMid", MID_SIZE, MID_QUADS, MAP_COLLISION * 0.5, 1.1)
+	mid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var far := _grid_mesh(parent, "Terrain", WORLD_SIZE, FAR_QUADS, MID_SIZE * 0.5, 3.2)
+	far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_horizon_impostors(parent)
 
 
-static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_playfield: bool) -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_inner: float, n_eps: float) -> MeshInstance3D:
 	var n: int = quads
 	var step := size / float(n)
 	var origin := -size * 0.5
-	var inner := MAP_COLLISION * 0.5 - step * 0.51
-	for z in n:
-		for x in n:
-			var x0 := origin + float(x) * step
-			var z0 := origin + float(z) * step
-			var x1 := x0 + step
-			var z1 := z0 + step
-			if skip_playfield and maxf(absf(x0), absf(z0)) <= inner and maxf(absf(x1), absf(z1)) <= inner:
-				continue
-			var p00 := Vector3(x0, height_at(x0, z0), z0)
-			var p10 := Vector3(x1, height_at(x1, z0), z0)
-			var p01 := Vector3(x0, height_at(x0, z1), z1)
-			var p11 := Vector3(x1, height_at(x1, z1), z1)
-			_add_tri(st, p00, p10, p11)
-			_add_tri(st, p00, p11, p01)
-	st.generate_normals()
-	if not skip_playfield:
-		st.generate_tangents()
-	var mesh := st.commit()
+	var stride := n + 1
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	verts.resize(stride * stride)
+	norms.resize(stride * stride)
+	uvs.resize(stride * stride)
+	for iz in stride:
+		for ix in stride:
+			var x := origin + float(ix) * step
+			var z := origin + float(iz) * step
+			var i := iz * stride + ix
+			verts[i] = Vector3(x, height_at(x, z), z)
+			norms[i] = normal_at(x, z, n_eps)
+			uvs[i] = Vector2(x, z) * 0.02
+	for iz in n:
+		for ix in n:
+			if skip_inner > 0.0:
+				var cx := origin + (float(ix) + 0.5) * step
+				var cz := origin + (float(iz) + 0.5) * step
+				if maxf(absf(cx), absf(cz)) <= skip_inner:
+					continue
+			var i00 := iz * stride + ix
+			var i10 := i00 + 1
+			var i01 := i00 + stride
+			var i11 := i01 + 1
+			indices.append(i00)
+			indices.append(i10)
+			indices.append(i11)
+			indices.append(i00)
+			indices.append(i11)
+			indices.append(i01)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var st := SurfaceTool.new()
+	st.create_from(mesh, 0)
+	st.generate_tangents()
+	mesh = st.commit()
 	var visual := MeshInstance3D.new()
 	visual.name = mesh_name
 	visual.mesh = mesh
 	visual.material_override = PbrLibrary.terrain()
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	visual.extra_cull_margin = 8.0
 	parent.add_child(visual)
-
-
-static func _add_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
-	var n: Vector3 = (b - a).cross(c - a)
-	if n.length_squared() < 1e-8:
-		n = Vector3.UP
-	else:
-		n = n.normalized()
-	st.set_normal(n)
-	st.set_uv(Vector2(a.x, a.z) * 0.02)
-	st.add_vertex(a)
-	st.set_normal(n)
-	st.set_uv(Vector2(b.x, b.z) * 0.02)
-	st.add_vertex(b)
-	st.set_normal(n)
-	st.set_uv(Vector2(c.x, c.z) * 0.02)
-	st.add_vertex(c)
+	return visual
 
 
 static func _playfield_collision(parent: Node3D) -> void:
@@ -224,6 +243,20 @@ static func _mesa_debris(parent: Node3D) -> void:
 	var holder := Node3D.new()
 	holder.name = "MesaDressing"
 	parent.add_child(holder)
+	var mm_i := MultiMeshInstance3D.new()
+	mm_i.name = "MesaTalusScatter"
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = KitFactory.boulder_mesh(61, Vector3(1.0, 0.55, 1.0), 10, 7)
+	mm.instance_count = MESA_SPECS.size() * 3
+	mm_i.multimesh = mm
+	mm_i.material_override = PbrLibrary.boulder()
+	mm_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mm_i.visibility_range_end = 260.0
+	mm_i.visibility_range_end_margin = 40.0
+	holder.add_child(mm_i)
+	var idx := 0
+	var mesh: Mesh = mm.mesh
 	for i in MESA_SPECS.size():
 		var s: Vector4 = MESA_SPECS[i]
 		var rng := RandomNumberGenerator.new()
@@ -231,95 +264,87 @@ static func _mesa_debris(parent: Node3D) -> void:
 		for k in 3:
 			var ang := rng.randf() * TAU
 			var rad := s.w * rng.randf_range(0.72, 1.18)
-			var pos := Vector3(s.x + cos(ang) * rad, 0.0, s.z + sin(ang) * rad)
-			var rock := plant_rock(holder, pos, 500 + i * 17 + k, false)
-			if rock and k == 0:
-				rock.name = "MesaTalus%d" % i
-		var cap_ang := rng.randf() * TAU
-		var cap_r := s.w * rng.randf_range(0.08, 0.22)
-		var cap := plant_rock(holder, Vector3(s.x + cos(cap_ang) * cap_r, 0.0, s.z + sin(cap_ang) * cap_r), 800 + i * 11, false)
-		if cap:
-			cap.name = "MesaCap%d" % i
-			cap.scale *= 0.55
+			var x := s.x + cos(ang) * rad
+			var z := s.z + sin(ang) * rad
+			var y := height_at(x, z)
+			var sc := rng.randf_range(0.7, 1.6)
+			var scl := Vector3(sc, sc * rng.randf_range(0.5, 0.8), sc * rng.randf_range(0.8, 1.2))
+			mm.set_instance_transform(idx, _grounded_xf(mesh, x, y, z, scl, rng.randf() * TAU))
+			idx += 1
+			if k == 0:
+				var mark := Node3D.new()
+				mark.name = "MesaTalus%d" % i
+				mark.position = Vector3(x, y - 0.08, z)
+				holder.add_child(mark)
 
 
 static func _dressing(parent: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1103
-	var pebble := KitFactory.pebble_mesh()
-	var pebbles := MultiMeshInstance3D.new()
-	pebbles.name = "Pebbles"
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = pebble
-	mm.instance_count = 480
-	pebbles.multimesh = mm
-	pebbles.material_override = PbrLibrary.rock(Color(0.8, 0.72, 0.6))
-	parent.add_child(pebbles)
-	for i in mm.instance_count:
-		var near := i < 280
-		var r := rng.randf_range(3.2, 36.0) if near else rng.randf_range(8.0, 210.0)
-		var a := rng.randf() * TAU
-		var x := cos(a) * r
-		var z := sin(a) * r
-		var y := height_at(x, z)
-		var xf := Transform3D()
-		var s := rng.randf_range(0.06, 0.28) if near else rng.randf_range(0.12, 0.55)
-		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.32, 0.7), s))
-		xf = xf.rotated(Vector3.UP, rng.randf() * TAU)
-		xf.origin = Vector3(x, y + 0.008, z)
-		mm.set_instance_transform(i, xf)
-	var scrub_mesh := KitFactory.scrub_mesh()
-	var scrub := MultiMeshInstance3D.new()
-	scrub.name = "Scrub"
-	var sm := MultiMesh.new()
-	sm.transform_format = MultiMesh.TRANSFORM_3D
-	sm.mesh = scrub_mesh
-	sm.instance_count = 280
-	scrub.multimesh = sm
-	scrub.material_override = PbrLibrary.scrub()
-	parent.add_child(scrub)
-	for i in sm.instance_count:
-		var near := i < 140
-		var r := rng.randf_range(5.0, 34.0) if near else rng.randf_range(10.0, 190.0)
-		var a := rng.randf() * TAU
-		var x := cos(a) * r
-		var z := sin(a) * r
-		if height_at(x, z) > 18.0:
-			x *= 0.45
-			z *= 0.45
-		var y := height_at(x, z)
-		var xf := Transform3D()
-		var s := rng.randf_range(0.32, 0.95) if near else rng.randf_range(0.45, 1.35)
-		xf = xf.scaled(Vector3(s, s * rng.randf_range(0.65, 1.25), s))
-		xf = xf.rotated(Vector3.UP, rng.randf() * TAU)
-		xf.origin = Vector3(x, y, z)
-		sm.set_instance_transform(i, xf)
+	_scatter_multimesh(parent, "Pebbles", KitFactory.pebble_mesh(), PbrLibrary.boulder(), 220, rng, 3.0, 34.0, 0.07, 0.22, 90.0, 0.4, 0.75)
+	_scatter_multimesh(parent, "PebblesFar", KitFactory.pebble_mesh(), PbrLibrary.boulder(), 90, rng, 20.0, 160.0, 0.14, 0.42, 200.0, 0.4, 0.75)
+	_scatter_multimesh(parent, "Scrub", KitFactory.scrub_mesh(), PbrLibrary.scrub(), 120, rng, 5.0, 34.0, 0.35, 0.9, 90.0, 0.75, 1.2)
+	_scatter_multimesh(parent, "ScrubFar", KitFactory.scrub_mesh(), PbrLibrary.scrub(), 50, rng, 16.0, 150.0, 0.5, 1.2, 180.0, 0.75, 1.2)
 	_decals(parent, rng)
 
 
+static func _scatter_multimesh(parent: Node3D, mesh_name: String, mesh: Mesh, mat: Material, count: int, rng: RandomNumberGenerator, r0: float, r1: float, s0: float, s1: float, vis_end: float, y0: float = 0.4, y1: float = 0.8) -> void:
+	var inst := MultiMeshInstance3D.new()
+	inst.name = mesh_name
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = count
+	inst.multimesh = mm
+	inst.material_override = mat
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	inst.visibility_range_end = vis_end
+	inst.visibility_range_end_margin = 18.0
+	parent.add_child(inst)
+	for i in count:
+		var r := rng.randf_range(r0, r1)
+		var a := rng.randf() * TAU
+		var x := cos(a) * r
+		var z := sin(a) * r
+		if height_at(x, z) > 22.0:
+			x *= 0.5
+			z *= 0.5
+		var y := height_at(x, z)
+		var s := rng.randf_range(s0, s1)
+		var scl := Vector3(s, s * rng.randf_range(y0, y1), s)
+		mm.set_instance_transform(i, _grounded_xf(mesh, x, y, z, scl, rng.randf() * TAU, 0.006))
+
+
 static func _decals(parent: Node3D, rng: RandomNumberGenerator) -> void:
-	for i in 16:
-		var r := rng.randf_range(3.0, 70.0)
+	var inst := MultiMeshInstance3D.new()
+	inst.name = "Washes"
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 1.0
+	mesh.bottom_radius = 1.12
+	mesh.height = 0.05
+	mesh.radial_segments = 8
+	mesh.rings = 0
+	mm.mesh = mesh
+	mm.instance_count = 8
+	inst.multimesh = mm
+	inst.material_override = PbrLibrary.dust()
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	inst.visibility_range_end = 70.0
+	parent.add_child(inst)
+	for i in mm.instance_count:
+		var r := rng.randf_range(4.0, 38.0)
 		var a := rng.randf() * TAU
 		var x := cos(a) * r
 		var z := sin(a) * r
 		var y := height_at(x, z)
-		var patch := MeshInstance3D.new()
-		patch.name = "Wash_%d" % i
-		var mesh := CylinderMesh.new()
-		var span := rng.randf_range(1.6, 4.8)
-		mesh.top_radius = span
-		mesh.bottom_radius = span * rng.randf_range(1.05, 1.25)
-		mesh.height = 0.06
-		mesh.radial_segments = 8
-		patch.mesh = mesh
-		patch.position = Vector3(x, y + 0.03, z)
-		patch.rotate_y(rng.randf() * TAU)
-		patch.scale = Vector3(1.0, 1.0, rng.randf_range(0.55, 1.15))
-		patch.material_override = PbrLibrary.dust() if i % 3 else PbrLibrary.sand(Color(0.78, 0.52, 0.3))
-		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		parent.add_child(patch)
+		var span := rng.randf_range(1.5, 3.6)
+		var xf := Transform3D()
+		xf = xf.scaled(Vector3(span, 1.0, span * rng.randf_range(0.55, 1.1)))
+		xf = xf.rotated(Vector3.UP, rng.randf() * TAU)
+		xf.origin = Vector3(x, y + 0.025, z)
+		mm.set_instance_transform(i, xf)
 
 
 static func _cover_rocks(parent: Node3D) -> void:
@@ -328,35 +353,101 @@ static func _cover_rocks(parent: Node3D) -> void:
 		Vector3(-20, 0, -12), Vector3(8, 0, -22), Vector3(-9, 0, 20),
 		Vector3(24, 0, 6), Vector3(-26, 0, -4), Vector3(16, 0, 22),
 		Vector3(-17, 0, -21), Vector3(30, 0, -8), Vector3(-32, 0, 10),
-		Vector3(6, 0, 32), Vector3(-4, 0, -30), Vector3(36, 0, 18),
-		Vector3(-38, 0, -16), Vector3(48, 0, -28), Vector3(-52, 0, 24),
-		Vector3(62, 0, 40), Vector3(-70, 0, -36),
+		Vector3(6, 0, 32), Vector3(-4, 0, -30),
 		Vector3(5.5, 0, -3.5), Vector3(-6.5, 0, -2.2), Vector3(3.8, 0, -7.5),
 		Vector3(-4.2, 0, 4.8), Vector3(9.5, 0, -5.0), Vector3(-8.8, 0, -8.0),
 		Vector3(2.4, 0, 9.6), Vector3(-11.0, 0, 6.4), Vector3(13.2, 0, -9.5),
 		Vector3(-15.5, 0, -6.8), Vector3(21.0, 0, 12.0), Vector3(-22.5, 0, 8.5),
 		Vector3(4.0, 0, -14.5), Vector3(-7.2, 0, -16.0), Vector3(11.8, 0, 15.4),
 	]
+	var holder := Node3D.new()
+	holder.name = "CoverBoulders"
+	parent.add_child(holder)
 	for i in spots.size():
-		plant_rock(parent, spots[i], 200 + i * 13, i < 8)
+		plant_rock(holder, spots[i], 200 + i * 13, i < 8)
 
 
 static func _horizon_scrub(parent: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77
-	for i in 18:
-		var a := float(i) / 18.0 * TAU + 0.2
+	var inst := MultiMeshInstance3D.new()
+	inst.name = "HorizonBoulders"
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = KitFactory.boulder_mesh(77, Vector3(1.4, 0.7, 1.2), 8, 6)
+	mm.instance_count = 16
+	inst.multimesh = mm
+	inst.material_override = PbrLibrary.boulder()
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	inst.visibility_range_begin = 40.0
+	inst.visibility_range_end = 220.0
+	inst.visibility_range_end_margin = 30.0
+	parent.add_child(inst)
+	for i in mm.instance_count:
+		var a := float(i) / float(mm.instance_count) * TAU + 0.2
 		var r := rng.randf_range(88.0, 150.0)
-		plant_rock(parent, Vector3(cos(a) * r, 0, sin(a) * r), 900 + i * 21, false)
+		var x := cos(a) * r
+		var z := sin(a) * r
+		var y := height_at(x, z)
+		var sc := rng.randf_range(1.4, 2.6)
+		mm.set_instance_transform(i, _grounded_xf(mm.mesh, x, y, z, Vector3(sc, sc * 0.55, sc), rng.randf() * TAU))
+
+
+static func _horizon_impostors(parent: Node3D) -> void:
+	var inst := MultiMeshInstance3D.new()
+	inst.name = "HorizonImpostors"
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.55
+	mesh.bottom_radius = 1.0
+	mesh.height = 1.0
+	mesh.radial_segments = 8
+	mesh.rings = 0
+	mm.mesh = mesh
+	mm.instance_count = 8
+	inst.multimesh = mm
+	inst.material_override = PbrLibrary.terrain()
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	inst.visibility_range_begin = 120.0
+	inst.visibility_range_end = 420.0
+	inst.visibility_range_begin_margin = 24.0
+	inst.visibility_range_end_margin = 40.0
+	parent.add_child(inst)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 901
+	for i in mm.instance_count:
+		var a := float(i) / 8.0 * TAU + 0.4
+		var r := rng.randf_range(260.0, 390.0)
+		var x := cos(a) * r
+		var z := sin(a) * r
+		var y := height_at(x, z)
+		var w := rng.randf_range(14.0, 26.0)
+		var h := rng.randf_range(10.0, 18.0)
+		var xf := Transform3D()
+		xf = xf.scaled(Vector3(w, h, w * rng.randf_range(0.7, 1.15)))
+		xf.origin = Vector3(x, y + h * 0.35, z)
+		mm.set_instance_transform(i, xf)
+
+
+static func _grounded_xf(mesh: Mesh, x: float, ground_y: float, z: float, scl: Vector3, yaw: float, extra: float = 0.0) -> Transform3D:
+	var xf := Transform3D()
+	xf = xf.scaled(scl)
+	xf = xf.rotated(Vector3.UP, yaw)
+	var bottom := 0.0
+	if mesh:
+		bottom = mesh.get_aabb().position.y
+	xf.origin = Vector3(x, ground_y - bottom * scl.y + extra, z)
+	return xf
 
 
 static func _dust_skirt(parent: Node3D, pos: Vector3, radius: float, _hint_h: float) -> void:
 	var mi := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
-	mesh.bottom_radius = radius * 1.15
+	mesh.bottom_radius = radius * 1.18
 	mesh.height = 0.07
-	mesh.radial_segments = 10
+	mesh.radial_segments = 8
 	mesh.rings = 0
 	mi.mesh = mesh
 	mi.material_override = PbrLibrary.dust()

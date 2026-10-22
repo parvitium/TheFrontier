@@ -16,7 +16,8 @@ Downloaded as 1k/2k JPG albedo, OpenGL normal, roughness, AO, and metal where th
 | rusty_metal_sheet | Brushed / oxidized mill steel (coil, bands, dark fittings) | https://polyhaven.com/a/rusty_metal_sheet |
 | rusty_metal_02 | Rust streaks, scrap, dusted fittings | https://polyhaven.com/a/rusty_metal_02 |
 | concrete_floor_02 | Walls, pads, plinths | https://polyhaven.com/a/concrete_floor_02 |
-| rock_face | Cliffs, cover rock, mesa strata | https://polyhaven.com/a/rock_face |
+| rock_face | Cliffs and mesa strata | https://polyhaven.com/a/rock_face |
+| rock_08 | Weathered sandstone boulders | https://polyhaven.com/a/rock_08 |
 | sand_01 | Basin sand and packed-earth blend (one warm palette) | https://polyhaven.com/a/sand_01 |
 | brown_mud_03 | Unused in the playfield (kept for audit; cool mud clashed with the desert) | https://polyhaven.com/a/brown_mud_03 |
 

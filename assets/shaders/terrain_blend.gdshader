@@ -15,6 +15,9 @@ uniform float rock_slope : hint_range(0.1, 1.0) = 0.38;
 uniform vec3 sand_tint = vec3(1.1, 0.88, 0.62);
 uniform vec3 dirt_tint = vec3(0.98, 0.68, 0.38);
 uniform vec3 rock_tint = vec3(0.9, 0.72, 0.52);
+uniform vec3 haze_color = vec3(0.86, 0.58, 0.36);
+uniform float haze_start = 48.0;
+uniform float haze_end = 240.0;
 
 varying vec3 world_pos;
 varying vec3 world_n;
@@ -64,8 +67,8 @@ vec4 sample_tri(sampler2D tex, vec3 p, vec3 n, float scale) {
 
 vec3 sample_dual(sampler2D tex, vec3 p, vec3 n, float scale) {
 	vec3 detail = sample_tri(tex, p, n, scale).rgb;
-	vec3 macro = sample_tri(tex, p, n, scale * 0.17).rgb;
-	float w = 0.38 + 0.28 * fbm(p.xz * 0.011);
+	vec3 macro = sample_tri(tex, p + vec3(19.0, 0.0, 11.0), n, scale * 0.13).rgb;
+	float w = 0.58 + 0.22 * fbm(p.xz * 0.0073);
 	return mix(detail, macro, w);
 }
 
@@ -105,22 +108,30 @@ void fragment() {
 	albedo = mix(albedo, rock * vec3(1.14, 0.88, 0.64), strata * rock_w * 0.42);
 	albedo = mix(albedo, rock * vec3(0.72, 0.5, 0.34), strata * rock_w * 0.18 * step(0.5, band));
 
+	float dist = length(world_pos.xz);
+	float haze = smoothstep(haze_start, haze_end, dist);
+	albedo = mix(albedo, haze_color, haze * 0.58);
 	ALBEDO = albedo;
 
 	float rs = sample_tri(sand_rough, world_pos, world_n, uv_scale).r;
 	float rd = sample_tri(dirt_rough, world_pos, world_n, uv_scale * 0.92).r;
 	float rr = sample_tri(rock_rough, world_pos, world_n, uv_scale * 0.48).r;
-	ROUGHNESS = clamp(rs * sand_w + rd * dirt_w + rr * rock_w, 0.28, 1.0);
-	METALLIC = 0.015 * (1.0 - rock_w);
+	ROUGHNESS = clamp(rs * sand_w + rd * dirt_w + rr * rock_w, 0.32, 1.0);
+	ROUGHNESS = mix(ROUGHNESS, 0.96, haze * 0.45);
+	METALLIC = 0.01 * (1.0 - rock_w);
+	SPECULAR = mix(0.18, 0.04, haze);
 
 	vec3 ns = sample_tri(sand_normal, world_pos, world_n, uv_scale).rgb;
-	vec3 ns_fine = sample_tri(sand_normal, world_pos, world_n, uv_scale * 3.6).rgb;
-	vec3 ns_rip = sample_tri(sand_normal, world_pos, world_n, uv_scale * 8.2).rgb;
-	ns = mix(mix(ns, ns_fine, 0.42), ns_rip, 0.22);
+	vec3 ns_fine = sample_tri(sand_normal, world_pos, world_n, uv_scale * 4.4).rgb;
+	vec3 ns_rip = sample_tri(sand_normal, world_pos, world_n, uv_scale * 11.0).rgb;
+	float rip_x = sin(world_pos.x * 8.2 + world_pos.z * 1.7);
+	float rip_z = sin(world_pos.z * 7.4 - world_pos.x * 1.35);
+	vec3 nproc = vec3(rip_x * 0.5 + 0.5, rip_z * 0.5 + 0.5, 1.0);
+	ns = mix(mix(mix(ns, ns_fine, 0.48), ns_rip, 0.28), nproc, 0.22 * sand_w);
 	vec3 nd = sample_tri(dirt_normal, world_pos, world_n, uv_scale * 0.92).rgb;
 	vec3 nr = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.48).rgb;
 	vec3 nr_band = sample_tri(rock_normal, world_pos, world_n, uv_scale * 0.18).rgb;
-	nr = mix(nr, nr_band, strata * 0.35);
+	nr = mix(nr, nr_band, strata * 0.42);
 	NORMAL_MAP = ns * sand_w + nd * dirt_w + nr * rock_w;
-	NORMAL_MAP_DEPTH = 1.15;
+	NORMAL_MAP_DEPTH = mix(1.35, 0.12, haze);
 }

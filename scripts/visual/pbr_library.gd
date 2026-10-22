@@ -9,9 +9,11 @@ const OXIDE_DIR := "res://assets/textures/rusty_metal_sheet"
 const RUST_DIR := "res://assets/textures/rusty_metal_02"
 const CONCRETE_DIR := "res://assets/textures/concrete_floor_02"
 const ROCK_DIR := "res://assets/textures/rock_face"
+const BOULDER_DIR := "res://assets/textures/rock_08"
 const SAND_DIR := "res://assets/textures/sand_01"
 const DIRT_DIR := "res://assets/textures/brown_mud_03"
 const TERRAIN_SHADER := "res://assets/shaders/terrain_blend.gdshader"
+const BOULDER_SHADER := "res://assets/shaders/boulder.gdshader"
 
 static var _cache: Dictionary = {}
 
@@ -46,7 +48,26 @@ static func concrete(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
 
 
 static func rock(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:
-	return _pbr("rock", ROCK_DIR, tint, 0.0, 1.18, false, 0.08)
+	return _pbr("rock", ROCK_DIR, tint, 0.0, 1.35, false, 0.08)
+
+
+static func boulder_pbr(tint: Color = Color(0.94, 0.80, 0.62)) -> StandardMaterial3D:
+	var mat := _pbr("boulder", BOULDER_DIR, tint, 0.0, 1.62, false, 0.55)
+	mat.metallic = 0.0
+	mat.roughness = clampf(mat.roughness, 0.72, 1.0)
+	if mat.normal_enabled:
+		mat.normal_scale = 0.55
+	return mat
+
+
+static func boulder(tint: Color = Color(0.96, 0.82, 0.64)) -> Material:
+	# Triplanar standard material: custom NORMAL_MAP shaders vanish on
+	# these generated meshes (poles produce degenerate tangents).
+	return boulder_pbr(tint)
+
+
+static func gun_metal(tint: Color = Color(0.42, 0.44, 0.46), metallic: float = 0.82, roughness_mul: float = 0.72) -> StandardMaterial3D:
+	return oxidized(tint, metallic, roughness_mul, false)
 
 
 static func sand(tint: Color = Color(1, 1, 1)) -> StandardMaterial3D:

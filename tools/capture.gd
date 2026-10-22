@@ -16,6 +16,7 @@ var _orbit: float = 0.35
 var _freeze: bool = false
 var _elapsed: float = 0.0
 var _done: bool = false
+var _stats_out: String = ""
 
 
 func _ready() -> void:
@@ -30,6 +31,8 @@ func _ready() -> void:
 			_orbit = float(arg.substr(8))
 		elif arg.begins_with("--freeze="):
 			_freeze = arg.substr(9) != "0"
+		elif arg.begins_with("--stats="):
+			_stats_out = arg.substr(8)
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_size(Vector2i(1280, 720))
 	GameSettings.set_quality(GameSettings.Quality.ULTRA)
@@ -73,6 +76,18 @@ func _lock_arena_camera(arena: Node) -> void:
 			_shot_placement(arena, player)
 		"mesas":
 			_shot_mesas(arena, player)
+		"mesas_far":
+			_shot_mesas_far(arena, player)
+		"cover_rocks":
+			_shot_cover_rocks(arena, player)
+		"close_wall":
+			_shot_close_wall(arena, player)
+		"close_turret":
+			_shot_close_turret(arena, player)
+		"rifle":
+			_seat_player(player, Vector3(0.0, 0.0, 6.0), 0.22, 0.12)
+		"wash_fps":
+			_seat_player(player, Vector3(-12.2, 0.0, 0.0), -1.12, 0.15)
 		_:
 			_seat_player(player, Vector3(0.0, 0.0, 6.0), -0.08, 0.0)
 
@@ -119,6 +134,64 @@ func _shot_mesas(arena: Node, player: Node3D) -> void:
 	cam.current = true
 
 
+func _shot_mesas_far(arena: Node, player: Node3D) -> void:
+	if player is PlayerController:
+		(player as PlayerController).visible = false
+	var cam := Camera3D.new()
+	cam.name = "CaptureCam"
+	cam.fov = 38.0
+	cam.position = Landscape.seat(Vector3(-6.0, 0.0, 18.0), 1.6)
+	arena.add_child(cam)
+	var look := Vector3(78.0, Landscape.height_at(78.0, -96.0) * 0.45, -96.0)
+	cam.look_at(look, Vector3.UP)
+	cam.current = true
+
+
+func _shot_cover_rocks(arena: Node, player: Node3D) -> void:
+	if player is PlayerController:
+		(player as PlayerController).visible = false
+	var target := Landscape.seat(Vector3(5.5, 0.0, -3.5), 0.45)
+	var cam := Camera3D.new()
+	cam.name = "CaptureCam"
+	cam.fov = 48.0
+	cam.position = Landscape.seat(Vector3(8.4, 0.0, -6.6), 1.35)
+	arena.add_child(cam)
+	cam.look_at(target, Vector3.UP)
+	cam.current = true
+
+
+func _shot_close_wall(arena: Node, player: Node3D) -> void:
+	if player is PlayerController:
+		(player as PlayerController).visible = false
+	var wall := WallBuilding.new()
+	wall.name = "CaptureWallClose"
+	arena.add_child(wall)
+	wall.setup(BuildingCatalog.by_id(Ids.WALL), PlacementRules.world_to_cell(Vector3(4.0, 0.0, -8.0)), 7101)
+	var cam := Camera3D.new()
+	cam.name = "CaptureCam"
+	cam.fov = 42.0
+	cam.position = Landscape.seat(Vector3(7.4, 0.0, -5.2), 1.55)
+	arena.add_child(cam)
+	cam.look_at(wall.global_position + Vector3(0.0, 1.15, 0.0), Vector3.UP)
+	cam.current = true
+
+
+func _shot_close_turret(arena: Node, player: Node3D) -> void:
+	if player is PlayerController:
+		(player as PlayerController).visible = false
+	var turret := TurretBuilding.new()
+	turret.name = "CaptureTurretClose"
+	arena.add_child(turret)
+	turret.setup(BuildingCatalog.by_id(Ids.TURRET), PlacementRules.world_to_cell(Vector3(3.0, 0.0, -6.0)), 7102)
+	var cam := Camera3D.new()
+	cam.name = "CaptureCam"
+	cam.fov = 40.0
+	cam.position = Landscape.seat(Vector3(5.6, 0.0, -3.6), 1.45)
+	arena.add_child(cam)
+	cam.look_at(turret.global_position + Vector3(0.0, 1.05, 0.0), Vector3.UP)
+	cam.current = true
+
+
 func _shot_placement(arena: Node, player: Node3D) -> void:
 	_seat_player(player, Vector3(3.8, 0.0, -9.5), -0.22, 0.38)
 	if not player is PlayerController:
@@ -153,6 +226,16 @@ func _process(delta: float) -> void:
 		return
 	_done = true
 	await RenderingServer.frame_post_draw
+	var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+	var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+	var objects := int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))
+	var fps := int(Performance.get_monitor(Performance.TIME_FPS))
+	print("CAPTURE STATS shot=", _shot, " fps=", fps, " draws=", draws, " prims=", prims, " objects=", objects)
+	if _stats_out != "":
+		var f := FileAccess.open(_stats_out, FileAccess.WRITE)
+		if f:
+			f.store_string("{\"shot\":\"%s\",\"fps\":%d,\"draws\":%d,\"prims\":%d,\"objects\":%d}\n" % [_shot, fps, draws, prims, objects])
+			f.close()
 	var img := get_viewport().get_texture().get_image()
 	if img:
 		img.save_png(_out)
