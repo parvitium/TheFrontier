@@ -22,6 +22,7 @@ func _ready() -> void:
 	_session_pause()
 	_resource_restock()
 	_settings_and_visuals()
+	_terrain_and_seating()
 	print("Passed: %d  Failed: %d" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -117,6 +118,21 @@ func _placement() -> void:
 	var ship := PlacementRules.evaluate({}, Ids.ESCAPE_SHIP, Vector2i(5, 5))
 	_ok(ship.ok and ship.cells.size() == 4, "ship uses 4 cells")
 	_ok(PlacementRules.world_to_cell(Vector3(4.2, 0, -3.8)) == Vector2i(2, -2), "world to cell snap")
+	var pad := PlacementRules.sample_footprint(Ids.WALL, Vector2i(4, 4))
+	_ok(float(pad.relief) < PlacementRules.MAX_RELIEF, "inner pad footprint is even enough")
+	_ok(float(pad.slope_deg) < PlacementRules.MAX_SLOPE_DEG, "inner pad footprint is not too steep")
+	var seated := PlacementRules.seat_origin(Ids.WALL, Vector2i(4, 4))
+	_ok(is_equal_approx(seated.x, 8.0) and is_equal_approx(seated.z, 8.0), "seat keeps cell xz")
+	_ok(is_equal_approx(seated.y, float(pad.avg_y) - PlacementRules.FOUNDATION_SINK), "seat uses average height minus sink")
+	_ok(PlacementRules.evaluate({}, Ids.ESCAPE_SHIP, Vector2i(5, 5)).ok, "2x2 ship still places on a mild wash")
+	_ok(PlacementRules.evaluate({}, Ids.TURRET, Vector2i(7, 5)).ok, "turret still places on a mild bank")
+	var dune_cell := PlacementRules.world_to_cell(Vector3(10.0, 0.0, -21.0))
+	var dune := PlacementRules.sample_footprint(Ids.WALL, dune_cell)
+	_ok(float(dune.max_y) > Landscape.height_at(0.0, 0.0) + 0.2, "dune sample is above the core pad")
+	_ok(absf(float(dune.min_y) - Landscape.height_at(float(dune_cell.x) * 2.0, float(dune_cell.y) * 2.0)) < 0.6, "dune sample tracks height_at")
+	var wash := PlacementRules.seat_origin(Ids.WALL, PlacementRules.world_to_cell(Vector3(-12.2, 0.0, 0.0)))
+	_ok(wash.y < Landscape.height_at(0.0, 0.0) - 0.15, "wash seating sits below the core pad")
+	_ok(not _pipe_row_is_raw_markdown(), "credits tables are formatted, not raw pipes")
 
 
 func _wave_scaling() -> void:
@@ -448,6 +464,8 @@ func _settings_and_visuals() -> void:
 	_ok(VisualKit.find_node(rifle, "OpticTube") != null, "rifle has optic tube")
 	_ok(VisualKit.find_node(rifle, "OpticLens") != null, "rifle has glass lens")
 	_ok(VisualKit.find_node(rifle, "Barrel") != null, "rifle has tapered barrel")
+	_ok(VisualKit.find_node(rifle, "StockTube") != null, "rifle has rounded stock tube")
+	_ok(VisualKit.find_node(rifle, "ReceiverRound") != null, "rifle has rounded receiver")
 	rifle.free()
 	var wall := KitFactory.build("building_wall")
 	_ok(wall != null and wall.find_child("PanelA0", true, false) != null, "wall has panel seams")
@@ -455,6 +473,9 @@ func _settings_and_visuals() -> void:
 	_ok(wall.find_child("Sandbag0", true, false) != null, "wall has sandbags")
 	_ok(wall.find_child("Antenna", true, false) != null, "wall has antenna")
 	_ok(wall.find_child("Brace0", true, false) != null, "wall has bracing")
+	_ok(wall.find_child("HullChamferX", true, false) != null, "wall has hull chamfer")
+	_ok(wall.find_child("CornerPost0", true, false) != null, "wall has corner posts")
+	_ok(wall.find_child("Rivet0_0", true, false) != null, "wall has panel rivets")
 	wall.free()
 	var core := KitFactory.build("core_engine")
 	_ok(core != null and core.find_child("Foundation", true, false) != null, "core has foundation")
@@ -475,3 +496,58 @@ func _settings_and_visuals() -> void:
 	GameSettings.set_quality(prev_q)
 	GameSettings.set_fov(prev_fov)
 	GameSettings.set_mouse_sensitivity(prev_sens)
+
+
+func _terrain_and_seating() -> void:
+	print("terrain collision and seating")
+	var shape := Landscape.make_heightmap_shape()
+	_ok(shape is HeightMapShape3D, "playfield collider is a heightmap")
+	_ok(shape.map_width == Landscape.COL_VERTS and shape.map_depth == Landscape.COL_VERTS, "heightmap covers playfield verts")
+	_ok(shape.map_data.size() == Landscape.COL_VERTS * Landscape.COL_VERTS, "heightmap data matches verts")
+	var mid := Landscape.COL_VERTS / 2
+	var xz := Landscape.col_world_xz(mid, mid)
+	_ok(absf(shape.map_data[mid * Landscape.COL_VERTS + mid] - Landscape.height_at(xz.x, xz.y)) < 0.001, "heightmap origin matches height_at")
+	var dune_i := 0
+	var dune_k := 0
+	var best := 0.0
+	for iz in Landscape.COL_VERTS:
+		for ix in Landscape.COL_VERTS:
+			var p := Landscape.col_world_xz(ix, iz)
+			if absf(p.x - 10.0) + absf(p.y + 21.0) < absf(Landscape.col_world_xz(dune_i, dune_k).x - 10.0) + absf(Landscape.col_world_xz(dune_i, dune_k).y + 21.0):
+				dune_i = ix
+				dune_k = iz
+			best = maxf(best, absf(shape.map_data[iz * Landscape.COL_VERTS + ix]))
+	var dune_xz := Landscape.col_world_xz(dune_i, dune_k)
+	_ok(absf(shape.map_data[dune_k * Landscape.COL_VERTS + dune_i] - Landscape.height_at(dune_xz.x, dune_xz.y)) < 0.001, "heightmap dune sample matches height_at")
+	_ok(best > 0.5, "heightmap stores real relief, not a flat y=0 plane")
+	var seated := Landscape.seat(Vector3(10, 99, -21))
+	_ok(is_equal_approx(seated.y, Landscape.height_at(10, -21)), "seat y follows height_at")
+	_ok(is_equal_approx(seated.x, 10.0) and is_equal_approx(seated.z, -21.0), "seat keeps xz")
+	_ok(Landscape.slope_deg(0.0, 0.0) < 8.0, "core pad slope is walkable")
+	var root := Node3D.new()
+	add_child(root)
+	Landscape.build(root, true)
+	var ground := root.find_child("Ground", true, false) as StaticBody3D
+	_ok(ground != null, "landscape builds a Ground body")
+	var col: CollisionShape3D = null
+	if ground:
+		col = ground.get_node_or_null("HeightMap") as CollisionShape3D
+	_ok(col != null and col.shape is HeightMapShape3D, "Ground uses HeightMapShape3D, not a y=0 box")
+	var playfield := root.find_child("Playfield", true, false)
+	_ok(playfield != null, "playfield visual mesh matches collision grid")
+	root.free()
+	_ok(CreditsPanel.markdown_to_bbcode("# Title\n| A | B |\n| --- | --- |\n| one | two |").find("[b]A[/b]") != -1, "markdown tables become formatted credits")
+	_ok(CreditsPanel.markdown_to_bbcode("# Title").find("|") == -1, "formatted credits drop raw table pipes")
+
+
+func _pipe_row_is_raw_markdown() -> bool:
+	var text := CreditsPanel.markdown_to_bbcode(_assets_md_head())
+	return text.find("| ---") != -1 or text.begins_with("# ")
+
+
+func _assets_md_head() -> String:
+	if FileAccess.file_exists("res://ASSETS.md"):
+		var f := FileAccess.open("res://ASSETS.md", FileAccess.READ)
+		if f:
+			return f.get_as_text()
+	return "# Assets\n| A | B |\n| --- | --- |\n| x | y |"

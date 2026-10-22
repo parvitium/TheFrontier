@@ -36,11 +36,13 @@ func _ensure_nav_tree() -> void:
 	region.name = "NavigationRegion3D"
 	var mesh := NavigationMesh.new()
 	mesh.cell_size = 0.4
-	mesh.cell_height = 0.3
+	mesh.cell_height = 0.25
 	mesh.agent_radius = 0.4
-	mesh.agent_height = 1.8
-	mesh.agent_max_climb = 0.3
+	mesh.agent_height = 1.75
+	mesh.agent_max_climb = 1.0
+	mesh.agent_max_slope = 50.0
 	mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	mesh.filter_baking_aabb = AABB(Vector3(-37.0, -6.0, -37.0), Vector3(74.0, 18.0, 74.0))
 	region.navigation_mesh = mesh
 	var geometry := Node3D.new()
 	geometry.name = "Geometry"
@@ -54,7 +56,7 @@ func _ensure_nav_tree() -> void:
 func _add_player() -> void:
 	var player := PlayerController.new()
 	player.name = "Player"
-	player.position = Vector3(0, 0.1, 6)
+	player.position = Landscape.seat(Vector3(0, 0, 6), 0.12)
 	add_child(player)
 
 

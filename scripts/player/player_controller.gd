@@ -19,6 +19,8 @@ func _ready() -> void:
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1 | 4 | 8 | 32
+	floor_max_angle = deg_to_rad(52.0)
+	floor_snap_length = 0.35
 	_build_body()
 	_weapons = WeaponController.new()
 	_weapons.name = "Weapons"
@@ -158,7 +160,7 @@ func _on_respawned() -> void:
 	visible = true
 	collision_layer = 2
 	collision_mask = 1 | 4 | 8 | 32
-	global_position = Vector3(0, 0.2, 6)
+	global_position = Landscape.seat(Vector3(0, 0, 6), 0.2)
 	velocity = Vector3.ZERO
 	look_pitch = 0.0
 	_camera.rotation.x = 0.0

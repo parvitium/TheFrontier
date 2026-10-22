@@ -19,44 +19,48 @@ static func _outpost(root: Node3D) -> void:
 	var core := VisualKit.instance("core_engine")
 	if core:
 		core.name = "TitleCore"
+		core.position = Landscape.seat(Vector3.ZERO, 0.0, 0.03)
 		root.add_child(core)
 	var light := OmniLight3D.new()
 	light.name = "CoreGlow"
 	light.light_color = Color(1.0, 0.62, 0.22)
 	light.light_energy = 4.2
 	light.omni_range = 18.0
-	light.position = Vector3(0, 3.2, 0)
+	light.position = Landscape.seat(Vector3(0, 0, 0), 3.2)
 	root.add_child(light)
 	var wall_spots := [
 		Vector3(4.2, 0, 4.6), Vector3(-4.6, 0, 3.8), Vector3(5.1, 0, -3.6), Vector3(-3.8, 0, -5.0),
 		Vector3(7.2, 0, 0.6), Vector3(-7.0, 0, -0.8), Vector3(1.2, 0, 7.4), Vector3(-0.8, 0, -7.2),
 		Vector3(9.4, 0, 2.8), Vector3(-9.0, 0, -2.4),
 	]
+	var seated_walls: Array[Vector3] = []
 	for i in wall_spots.size():
+		var seated := Landscape.seat(wall_spots[i], 0.0, 0.04)
+		seated_walls.append(seated)
 		var wall := VisualKit.instance("building_wall")
 		if wall:
-			wall.position = wall_spots[i]
+			wall.position = seated
 			wall.rotate_y(float(i) * 0.55 + 0.15)
 			root.add_child(wall)
-	KitFactory.span_cable(root, wall_spots[0] + Vector3(0, 2.4, 0), wall_spots[4] + Vector3(0, 2.7, 0), "SpanCableA", 0.03)
-	KitFactory.span_cable(root, wall_spots[1] + Vector3(0, 2.2, 0), wall_spots[5] + Vector3(0, 2.5, 0), "SpanCableB", 0.028)
-	KitFactory.span_cable(root, wall_spots[2] + Vector3(0, 2.6, 0), wall_spots[8] + Vector3(0, 2.9, 0), "SpanCableC", 0.026)
-	KitFactory.sandbag_stack(root, Vector3(2.4, 0.0, 5.2), 0.4, 6, 77)
-	KitFactory.sandbag_stack(root, Vector3(-5.4, 0.0, 2.2), -0.6, 5, 88)
+	KitFactory.span_cable(root, seated_walls[0] + Vector3(0, 2.4, 0), seated_walls[4] + Vector3(0, 2.7, 0), "SpanCableA", 0.03)
+	KitFactory.span_cable(root, seated_walls[1] + Vector3(0, 2.2, 0), seated_walls[5] + Vector3(0, 2.5, 0), "SpanCableB", 0.028)
+	KitFactory.span_cable(root, seated_walls[2] + Vector3(0, 2.6, 0), seated_walls[8] + Vector3(0, 2.9, 0), "SpanCableC", 0.026)
+	KitFactory.sandbag_stack(root, Landscape.seat(Vector3(2.4, 0.0, 5.2)), 0.4, 6, 77)
+	KitFactory.sandbag_stack(root, Landscape.seat(Vector3(-5.4, 0.0, 2.2)), -0.6, 5, 88)
 	var tank_spots := [Vector3(11, 0, -6), Vector3(-13, 0, 5), Vector3(14, 0, 9)]
 	for p in tank_spots:
 		var tank := VisualKit.instance("storage_tank")
 		if tank:
-			tank.position = p
+			tank.position = Landscape.seat(p, 0.0, 0.08)
 			root.add_child(tank)
 	var ship := VisualKit.instance("building_escape_ship")
 	if ship:
-		ship.position = Vector3(-9, 0, -11)
+		ship.position = Landscape.seat(Vector3(-9, 0, -11), 0.0, 0.06)
 		ship.rotate_y(0.7)
 		root.add_child(ship)
 	var beacon := VisualKit.instance("building_repair_beacon")
 	if beacon:
-		beacon.position = Vector3(5.5, 0, -3)
+		beacon.position = Landscape.seat(Vector3(5.5, 0, -3), 0.0, 0.04)
 		root.add_child(beacon)
 
 
@@ -67,7 +71,7 @@ static func _turrets(root: Node3D) -> void:
 	for p in [Vector3(7, 0, 7), Vector3(-7, 0, 6), Vector3(3, 0, -8)]:
 		var turret := VisualKit.instance("building_turret")
 		if turret:
-			turret.position = p
+			turret.position = Landscape.seat(p, 0.0, 0.04)
 			tracker.add_child(turret)
 
 
@@ -80,7 +84,7 @@ static func _silhouettes(root: Node3D) -> void:
 		var mob := VisualKit.instance(kinds[i])
 		if mob:
 			var angle := TAU * float(i) / float(kinds.size())
-			mob.position = Vector3(cos(angle) * 26.0, 0, sin(angle) * 26.0)
+			mob.position = Landscape.seat(Vector3(cos(angle) * 26.0, 0, sin(angle) * 26.0))
 			pack.add_child(mob)
 
 
@@ -148,8 +152,8 @@ class TitleSilhouettes:
 				var n: Node3D = child as Node3D
 				var base := TAU * float(i) / maxf(1.0, float(get_child_count()))
 				var radius := 25.0 + sin(_t + float(i)) * 1.5
-				n.position = Vector3(cos(base + _t) * radius, 0.0, sin(base + _t) * radius)
-				var ahead := Vector3(cos(base + _t + 0.2) * radius, 0, sin(base + _t + 0.2) * radius)
+				n.position = Landscape.seat(Vector3(cos(base + _t) * radius, 0.0, sin(base + _t) * radius))
+				var ahead := Landscape.seat(Vector3(cos(base + _t + 0.2) * radius, 0, sin(base + _t + 0.2) * radius))
 				if (ahead - n.position).length() > 0.05:
 					n.look_at(ahead, Vector3.UP)
 			i += 1

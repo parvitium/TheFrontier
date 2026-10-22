@@ -28,7 +28,8 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	add_to_group("damageable")
 	collision_mask = 0
 	var size := footprint_collider_size(def.footprint)
-	position = PlacementRules.cell_to_world(origin, 0.0) + Vector3((def.footprint.x - 1) * PlacementRules.CELL_SIZE * 0.5, 0, (def.footprint.y - 1) * PlacementRules.CELL_SIZE * 0.5)
+	var seated := PlacementRules.building_world_position(origin, def.footprint)
+	transform = Transform3D(PlacementRules.foundation_basis(seated.x, seated.z), seated)
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	visual.set_meta("asset_slot", "building_%s" % def.id)

@@ -7,6 +7,8 @@ const WORLD_SIZE := 520.0
 const PLAY_RADIUS := 38.0
 const GRID := 110
 const MAP_COLLISION := 72.0
+const COL_VERTS := 73
+const FOUNDATION_SINK := 0.04
 
 
 static func height_at(x: float, z: float) -> float:
@@ -27,6 +29,43 @@ static func height_at(x: float, z: float) -> float:
 	if r < PLAY_RADIUS:
 		return basin
 	return basin * (1.0 - edge) + rise + dunes * 2.4 + mesa + rim
+
+
+static func seat(pos: Vector3, extra_y: float = 0.0, sink: float = 0.0) -> Vector3:
+	return Vector3(pos.x, height_at(pos.x, pos.z) + extra_y - sink, pos.z)
+
+
+static func normal_at(x: float, z: float, eps: float = 0.4) -> Vector3:
+	var hl := height_at(x - eps, z)
+	var hr := height_at(x + eps, z)
+	var hd := height_at(x, z - eps)
+	var hu := height_at(x, z + eps)
+	return Vector3(hl - hr, 2.0 * eps, hd - hu).normalized()
+
+
+static func slope_deg(x: float, z: float) -> float:
+	return rad_to_deg(acos(clampf(normal_at(x, z).y, -1.0, 1.0)))
+
+
+static func col_world_xz(ix: int, iz: int) -> Vector2:
+	var half := MAP_COLLISION * 0.5
+	var step := MAP_COLLISION / float(COL_VERTS - 1)
+	return Vector2(-half + float(ix) * step, -half + float(iz) * step)
+
+
+static func make_heightmap_shape() -> HeightMapShape3D:
+	var shape := HeightMapShape3D.new()
+	var n: int = COL_VERTS
+	shape.map_width = n
+	shape.map_depth = n
+	var data := PackedFloat32Array()
+	data.resize(n * n)
+	for iz in n:
+		for ix in n:
+			var xz := col_world_xz(ix, iz)
+			data[iz * n + ix] = height_at(xz.x, xz.y)
+	shape.map_data = data
+	return shape
 
 
 static func _carved_relief(x: float, z: float) -> float:
@@ -94,18 +133,25 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 
 
 static func _terrain_mesh(parent: Node3D) -> void:
+	_grid_mesh(parent, "Terrain", WORLD_SIZE, GRID, true)
+	_grid_mesh(parent, "Playfield", MAP_COLLISION, COL_VERTS - 1, false)
+
+
+static func _grid_mesh(parent: Node3D, mesh_name: String, size: float, quads: int, skip_playfield: bool) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n: int = GRID
-	var size := WORLD_SIZE
+	var n: int = quads
 	var step := size / float(n)
 	var origin := -size * 0.5
+	var inner := MAP_COLLISION * 0.5 - step * 0.51
 	for z in n:
 		for x in n:
 			var x0 := origin + float(x) * step
 			var z0 := origin + float(z) * step
 			var x1 := x0 + step
 			var z1 := z0 + step
+			if skip_playfield and maxf(absf(x0), absf(z0)) <= inner and maxf(absf(x1), absf(z1)) <= inner:
+				continue
 			var p00 := Vector3(x0, height_at(x0, z0), z0)
 			var p10 := Vector3(x1, height_at(x1, z0), z0)
 			var p01 := Vector3(x0, height_at(x0, z1), z1)
@@ -116,7 +162,7 @@ static func _terrain_mesh(parent: Node3D) -> void:
 	st.generate_tangents()
 	var mesh := st.commit()
 	var visual := MeshInstance3D.new()
-	visual.name = "Terrain"
+	visual.name = mesh_name
 	visual.mesh = mesh
 	visual.material_override = PbrLibrary.terrain()
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -146,10 +192,8 @@ static func _playfield_collision(parent: Node3D) -> void:
 	body.collision_layer = 1
 	body.collision_mask = 0
 	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(MAP_COLLISION, 1.0, MAP_COLLISION)
-	col.shape = shape
-	col.position.y = -0.5
+	col.name = "HeightMap"
+	col.shape = make_heightmap_shape()
 	body.add_child(col)
 	parent.add_child(body)
 
@@ -321,12 +365,22 @@ static func _mesa_field(x: float, z: float) -> float:
 		Vector4(176, 16, -132, 28),
 		Vector4(-48, 24, -178, 32),
 	]
+	var n := _vnoise(x, z, 0.035)
+	var n2 := _vnoise(x + 17.0, z - 9.0, 0.08)
+	var n3 := _vnoise(x * 0.6, z * 0.6, 0.055)
 	for m in mesas:
-		var dx := x - m.x
-		var dz := z - m.z
+		var dx := x - m.x + (n - 0.5) * m.w * 0.22
+		var dz := z - m.z + (n2 - 0.5) * m.w * 0.22
 		var md := sqrt(dx * dx + dz * dz)
-		var top := 1.0 - _smooth(m.w * 0.55, m.w, md)
-		h = maxf(h, top * m.y)
+		var inner := m.w * (0.42 + n * 0.12)
+		var outer := m.w * (0.88 + n2 * 0.14)
+		var top := 1.0 - _smooth(inner, outer, md)
+		var gully := pow(absf(n3 * 2.0 - 1.0), 1.6)
+		var rim := 1.0 - _smooth(inner * 0.7, outer, md)
+		top *= 1.0 - gully * 0.38 * rim
+		var cap := m.y * (0.88 + n * 0.18)
+		h = maxf(h, top * cap)
+	h += (n2 - 0.5) * 0.9 * _smooth(PLAY_RADIUS + 20.0, 80.0, sqrt(x * x + z * z))
 	return h
 
 

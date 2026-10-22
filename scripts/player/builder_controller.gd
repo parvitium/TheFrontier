@@ -80,13 +80,14 @@ func update_ghost(camera: Camera3D) -> void:
 			_ghost.visible = false
 			return
 		point = from + flat.normalized() * 6.0
-		point.y = 0.0
+		point.y = Landscape.height_at(point.x, point.z)
 	_origin = PlacementRules.world_to_cell(point)
-	var world := PlacementRules.cell_to_world(_origin, 0.0)
 	var def := current()
 	var size := Vector3(float(def.footprint.x) * 1.85, 1.6, float(def.footprint.y) * 1.85)
 	(_ghost.mesh as BoxMesh).size = size
-	_ghost.global_position = world + Vector3((def.footprint.x - 1) * PlacementRules.CELL_SIZE * 0.5, size.y * 0.5, (def.footprint.y - 1) * PlacementRules.CELL_SIZE * 0.5)
+	var seated := PlacementRules.seat_origin(def.id, _origin)
+	var basis := PlacementRules.foundation_basis(seated.x, seated.z)
+	_ghost.global_transform = Transform3D(basis, seated + basis.y * (size.y * 0.5))
 	var placement := PlacementRules.evaluate(Session.state.occupied_cells, def.id, _origin)
 	var afford := Economy.can_afford(Session.state.resources, def.cost())
 	_valid = placement.ok and afford

@@ -25,17 +25,17 @@ static func _cover(_arena: Node3D) -> void:
 
 
 static func _dressing(arena: Node3D) -> void:
-	for p in [Vector3(15, 0, 18), Vector3(-17, 0, -16)]:
+	for p in [Vector3(15, 0, 18), Vector3(-17, 0, -16), Vector3(10, 0, -21)]:
 		var tank := VisualKit.instance("storage_tank")
 		if tank:
-			tank.position = p
+			tank.position = Landscape.seat(p, 0.0, 0.08)
 			arena.add_child(tank)
 
 
 static func _core(arena: Node3D) -> void:
 	var core := CoreEngine.new()
 	core.name = "Core"
-	core.position = Vector3(0, 0, 0)
+	core.position = Landscape.seat(Vector3.ZERO, 0.0, 0.03)
 	arena.add_child(core)
 
 
@@ -45,13 +45,13 @@ static func _resources(arena: Node3D) -> void:
 	for i in scrap_spots.size():
 		var node := ResourceNode.new()
 		node.name = "Scrap_%d" % i
-		node.position = scrap_spots[i]
+		node.position = Landscape.seat(scrap_spots[i], 0.0, 0.05)
 		node.configure(Ids.SCRAP, 12, 0.4, Color(0.62, 0.38, 0.2), Color(0.7, 0.35, 0.1))
 		arena.add_child(node)
 	for i in crystal_spots.size():
 		var node := ResourceNode.new()
 		node.name = "Crystal_%d" % i
-		node.position = crystal_spots[i]
+		node.position = Landscape.seat(crystal_spots[i], 0.0, 0.05)
 		node.configure(Ids.CRYSTAL, 8, 0.65, Color(0.35, 0.78, 0.86), Color(0.3, 0.85, 1.0))
 		arena.add_child(node)
 
@@ -67,7 +67,7 @@ static func _relics(arena: Node3D) -> void:
 	for i in count:
 		var relic := Relic.new()
 		relic.name = "Relic_%d" % i
-		relic.position = spots[i]
+		relic.position = Landscape.seat(spots[i], 0.0, 0.04)
 		arena.add_child(relic)
 
 
@@ -80,5 +80,5 @@ static func _spawns(arena: Node3D) -> void:
 		var angle := TAU * float(i) / 8.0
 		var marker := Marker3D.new()
 		marker.name = "Spawn_%d" % i
-		marker.position = Vector3(cos(angle) * radius, 0.1, sin(angle) * radius)
+		marker.position = Landscape.seat(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius), 0.15)
 		holder.add_child(marker)

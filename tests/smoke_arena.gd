@@ -44,7 +44,7 @@ func _spawn_probe_mob() -> void:
 	mob.name = "SmokeProbeMob"
 	mob.configure(def)
 	arena.add_child(mob)
-	mob.global_position = Vector3(12, 0.2, 0)
+	mob.global_position = Landscape.seat(Vector3(12, 0, 0), 0.2)
 	Session.cmd_mob_spawned()
 	_probe = mob
 	await get_tree().physics_frame
