@@ -153,7 +153,7 @@ func _pick_primary() -> Node3D:
 
 func _should_breach(target: Node3D) -> bool:
 	var from := PlacementRules.world_to_cell(global_position)
-	var enclosed := not BreachRules.core_reachable(Session.state.occupied_cells, from)
+	var enclosed := not BreachRules.core_reachable(Session.state.occupied_cells, from, Session.state.building_instances)
 	if enclosed:
 		if target != null and target.is_in_group("player") and _agent_can_reach(target):
 			return false
@@ -181,7 +181,7 @@ func _agent_unreachable_far(target: Node3D) -> bool:
 
 func _pick_breach_building() -> Node3D:
 	var from := PlacementRules.world_to_cell(global_position)
-	var serials := BreachRules.blocking_serials(Session.state.occupied_cells, from)
+	var serials := BreachRules.blocking_serials(Session.state.occupied_cells, from, Session.state.building_instances)
 	var best := _nearest_blocking(serials)
 	if best != null:
 		return best

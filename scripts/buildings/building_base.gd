@@ -6,12 +6,16 @@ var serial: int = -1
 var grid_origin: Vector2i = Vector2i.ZERO
 
 
-static func footprint_collider_size(footprint: Vector2i) -> Vector3:
+static func footprint_collider_size(footprint: Vector2i, height: float = 1.8) -> Vector3:
 	return Vector3(
 		float(footprint.x) * PlacementRules.CELL_SIZE,
-		1.8,
+		height,
 		float(footprint.y) * PlacementRules.CELL_SIZE
 	)
+
+
+static func uses_blocking_collider(def: BuildingDef) -> bool:
+	return def != null and def.blocks_navigation
 
 
 func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
@@ -22,7 +26,6 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	set_meta("building_serial", p_serial)
 	add_to_group("buildings")
 	add_to_group("damageable")
-	collision_layer = 8
 	collision_mask = 0
 	var size := footprint_collider_size(def.footprint)
 	position = PlacementRules.cell_to_world(origin, 0.0) + Vector3((def.footprint.x - 1) * PlacementRules.CELL_SIZE * 0.5, 0, (def.footprint.y - 1) * PlacementRules.CELL_SIZE * 0.5)
@@ -31,12 +34,17 @@ func setup(def: BuildingDef, origin: Vector2i, p_serial: int) -> void:
 	visual.set_meta("asset_slot", "building_%s" % def.id)
 	add_child(visual)
 	_build_visual(visual, def, size)
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = size
-	col.shape = shape
-	col.position.y = size.y * 0.5
-	add_child(col)
+	# Traps occupy a cell for placement but must not be 1.8 m physics / hitscan walls.
+	if uses_blocking_collider(def):
+		collision_layer = 8
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = size
+		col.shape = shape
+		col.position.y = size.y * 0.5
+		add_child(col)
+	else:
+		collision_layer = 0
 	var health := Health.new()
 	health.name = "Health"
 	health.configure(def.max_health, "building")

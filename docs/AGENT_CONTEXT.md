@@ -43,15 +43,15 @@ Player locomotion still runs locally (`PlayerController`). Hitscan rays stay in 
 
 ## Pause
 
-`Session.set_paused(true)` is a full sim halt. `tick` returns immediately: rest, respawn, fire cooldown, turret cooldown, and reload freeze. `PauseMenu` also pauses the scene tree so views stop. This is intentional — pause is not a HUD overlay. Tests assert `tick` is a no-op while `sim_paused`.
+`Session.set_paused(true)` is a full sim halt. `tick` returns immediately: rest, respawn, fire cooldown, turret cooldown, and reload freeze. `cmd_try_fire`, `cmd_try_turret_fire`, and `cmd_trap_pulse` also reject while paused (no ammo spend, no turret cooldown write). `PauseMenu` also pauses the scene tree so views stop. This is intentional — pause is not a HUD overlay. Tests assert `tick` is a no-op and those commands fail while `sim_paused`.
 
 ## Walls and enclosure
 
 Placement does **not** reject a closed ring. Walls stay meaningful: they delay the wave.
 
-`BreachRules` is a 4-way grid flood on `occupied_cells`. If the 3×3 core is unreachable from a mob cell, `blocking_serials` is the occupied frontier. Mobs then path to those buildings and melee them. Navmesh `is_target_reachable()` / `is_navigation_finished()` is a second trigger when the bake stalls them short of the core.
+`BreachRules` is a 4-way grid flood on nav-blocking occupied cells. Traps occupy a cell for placement but are passable to the flood. If the 3×3 core is unreachable from a mob cell, `blocking_serials` is the solid frontier. Mobs then path to those buildings and melee them. Navmesh `is_target_reachable()` / `is_navigation_finished()` is a second trigger when the bake stalls them short of the core.
 
-Building colliders fill the 2 m cell (`BuildingBase.footprint_collider_size`) so adjacent walls have no 0.3 m gap.
+Nav-blocking building colliders fill the 2 m cell (`BuildingBase.footprint_collider_size`) so adjacent walls have no 0.3 m gap. Traps have no blocking collider — mobs walk over them and shots pass; their `Area3D` still pulses damage.
 
 ## Data-driven content
 
@@ -84,7 +84,7 @@ Endless spawns `relics_on_map` signal relics. Pickups add score only; they do no
 
 ## Tests
 
-`tests/test_runner.tscn` runs `tests/run_tests.gd` and exits non-zero on failure. Drive rules through `Session.cmd_*` and `Session.tick`. Do not mutate a raw `GameState` to simulate a run. Scene-level smoke is `tests/smoke_arena.tscn` (real seconds, all four modes) and `tests/smoke_menu.tscn`.
+`tests/test_runner.tscn` runs `tests/run_tests.gd` and exits non-zero on failure. Drive rules through `Session.cmd_*` and `Session.tick`. Do not mutate a raw `GameState` to simulate a run. Scene-level smoke is `tests/smoke_arena.tscn` (real seconds, all four modes, one live `MobActor` that must move and take `Session` damage) and `tests/smoke_menu.tscn`.
 
 ## What is intentionally unfinished
 

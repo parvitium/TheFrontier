@@ -59,7 +59,7 @@ Player death: you drop 15% of carried scrap and respawn at the core after 5 seco
 | --- | --- | --- |
 | Wall | 8 scrap | Blocks navmesh paths. A closed ring is legal; mobs path to the blocking buildings and melee them. |
 | Auto-Turret | 25 scrap, 10 crystal | Shoots nearest mob |
-| Spike Field | 12 scrap, 5 crystal | Slow + damage |
+| Spike Field | 12 scrap, 5 crystal | Slow + damage. Does not block movement or shots. |
 | Repair Beacon | 20 scrap, 15 crystal | Heals core, buildings, player |
 | Escape Ship | 80 scrap, 40 crystal | Escape mode only |
 
@@ -71,4 +71,4 @@ No third-party audio, textures, or models are included. Code is MIT (`LICENSE`).
 
 ## Tests and CI
 
-`tests/test_runner.tscn` drives `Session.cmd_*` for every mode's win/loss, economy, respawn, combat, ammo, pause, and wall-breach reachability. GitHub Actions (`.github/workflows/ci.yml`) downloads Godot 4.7.2, imports, runs the suite, then smokes the menu and each arena mode for real seconds (`scripts/ci/smoke.sh`). Do not use `--quit-after N` for time — that is frames, not seconds.
+`tests/test_runner.tscn` drives `Session.cmd_*` for every mode's win/loss, economy, respawn, combat, ammo, pause, and wall-breach reachability. GitHub Actions (`.github/workflows/ci.yml`) downloads Godot 4.7.2, imports, runs the suite, then smokes the menu and each arena mode for real seconds (`scripts/ci/smoke.sh`). Arena smoke also spawns a live `MobActor` and checks it moves and takes `Session` damage. Do not use `--quit-after N` for time — that is frames, not seconds.

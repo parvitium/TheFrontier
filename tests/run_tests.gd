@@ -82,6 +82,23 @@ func _building_costs() -> void:
 	_ok(BuildingCatalog.available_for_mode(survive).size() == 4, "survive hides ship")
 	var fill := BuildingBase.footprint_collider_size(Vector2i.ONE)
 	_ok(is_equal_approx(fill.x, PlacementRules.CELL_SIZE) and is_equal_approx(fill.z, PlacementRules.CELL_SIZE), "wall collider fills 2m cell")
+	_ok(is_equal_approx(fill.y, 1.8), "nav-blocking collider is 1.8m tall")
+	_ok(BuildingBase.uses_blocking_collider(BuildingCatalog.by_id(Ids.WALL)), "wall uses blocking collider")
+	_ok(BuildingBase.uses_blocking_collider(BuildingCatalog.by_id(Ids.TURRET)), "turret uses blocking collider")
+	_ok(not BuildingBase.uses_blocking_collider(BuildingCatalog.by_id(Ids.TRAP)), "trap uses no blocking collider")
+	_boot(Ids.MODE_SURVIVE)
+	var wall_actor := WallBuilding.new()
+	add_child(wall_actor)
+	wall_actor.setup(BuildingCatalog.by_id(Ids.WALL), Vector2i(8, 8), 900)
+	_ok(wall_actor.collision_layer == 8, "wall lives on building physics layer")
+	_ok(_direct_box_height(wall_actor) > 1.5, "wall blocking box is chest-high")
+	var trap_actor := TrapBuilding.new()
+	add_child(trap_actor)
+	trap_actor.setup(BuildingCatalog.by_id(Ids.TRAP), Vector2i(9, 8), 901)
+	_ok(trap_actor.collision_layer == 0, "trap has no blocking physics layer")
+	_ok(_direct_box_height(trap_actor) == 0.0, "trap has no blocking CollisionShape3D")
+	wall_actor.free()
+	trap_actor.free()
 
 
 func _placement() -> void:
@@ -177,8 +194,23 @@ func _breach() -> void:
 				if result.ok:
 					placed += 1
 	_ok(placed == 16, "session allows a closed wall ring")
-	_ok(not BreachRules.core_reachable(Session.state.occupied_cells, Vector2i(12, 0)), "session ring encloses the core")
-	_ok(BreachRules.blocking_serials(Session.state.occupied_cells, Vector2i(12, 0)).size() > 0, "session ring has attackable walls")
+	_ok(not BreachRules.core_reachable(Session.state.occupied_cells, Vector2i(12, 0), Session.state.building_instances), "session ring encloses the core")
+	_ok(BreachRules.blocking_serials(Session.state.occupied_cells, Vector2i(12, 0), Session.state.building_instances).size() > 0, "session ring has attackable walls")
+	_boot(Ids.MODE_SURVIVE)
+	Session.cmd_gather(Ids.SCRAP, 200)
+	Session.cmd_gather(Ids.CRYSTAL, 20)
+	var trap_ring := 0
+	for x3 in range(-2, 3):
+		for y3 in range(-2, 3):
+			if maxi(absi(x3), absi(y3)) != 2:
+				continue
+			var id := Ids.TRAP if x3 == 2 and y3 == 0 else Ids.WALL
+			if Session.cmd_try_place(id, Vector2i(x3, y3)).ok:
+				trap_ring += 1
+	_ok(trap_ring == 16, "session places a 15-wall ring with a trap gap")
+	_ok(BreachRules.core_reachable(Session.state.occupied_cells, Vector2i(12, 0), Session.state.building_instances), "trap gap is passable to the flood")
+	_ok(BreachRules.blocking_serials(Session.state.occupied_cells, Vector2i(12, 0), Session.state.building_instances).is_empty(), "trap gap has no breach list")
+	_ok(not BreachRules.cell_blocks(Session.state.occupied_cells, Vector2i(2, 0), Session.state.building_instances), "trap cell is not solid")
 
 
 func _session_survive() -> void:
@@ -307,6 +339,14 @@ func _session_combat_and_ammo() -> void:
 	_ok(Session.state.reload_remaining > 0.0, "empty mag starts reload")
 	Session.tick(rifle.reload_time + 0.05)
 	_ok(int(Session.state.weapons[0].mag) == rifle.magazine_size, "reload finishes on tick")
+	var mob := MobActor.new()
+	add_child(mob)
+	mob.configure(MobCatalog.by_id(Ids.RUSHER))
+	var health := mob.get_node("Health") as Health
+	var before := health.current
+	_ok(Session.cmd_damage_mob(mob, 10.0), "Session damages a live MobActor")
+	_ok(is_equal_approx(health.current, before - 10.0), "MobActor HP dropped through Session")
+	mob.free()
 
 
 func _session_death_and_respawn() -> void:
@@ -332,14 +372,34 @@ func _session_death_and_respawn() -> void:
 func _session_pause() -> void:
 	print("session pause")
 	_boot(Ids.MODE_SURVIVE)
+	Session.cmd_gather(Ids.SCRAP, 40)
+	Session.cmd_gather(Ids.CRYSTAL, 20)
+	var turret: Dictionary = Session.cmd_try_place(Ids.TURRET, Vector2i(7, 5))
+	var trap: Dictionary = Session.cmd_try_place(Ids.TRAP, Vector2i(7, 6))
+	_ok(turret.ok and trap.ok, "pause fixtures placed")
 	var rest: float = float(Session.state.rest_remaining)
+	var mag: int = int(Session.state.weapons[0].mag)
 	Session.set_paused(true)
 	Session.tick(5.0)
 	_ok(is_equal_approx(Session.state.rest_remaining, rest), "pause freezes Session.tick")
 	_ok(is_equal_approx(Session.state.elapsed_time, 0.0), "pause freezes elapsed")
+	var paused_fire: Dictionary = Session.cmd_try_fire()
+	_ok(not paused_fire.ok, "pause rejects fire")
+	_ok(int(Session.state.weapons[0].mag) == mag, "pause fire does not consume ammo")
+	_ok(not Session.cmd_try_turret_fire(int(turret.serial), self, 15.0), "pause rejects turret")
+	_ok(is_equal_approx(float(Session.state.turret_cooldown.get(int(turret.serial), 0.0)), 0.0), "pause turret does not write cooldown")
+	_ok(not Session.cmd_trap_pulse(int(trap.serial), self, 0.16), "pause rejects trap")
 	Session.set_paused(false)
 	Session.tick(5.0)
 	_ok(Session.state.rest_remaining < rest, "unpause resumes rest clock")
+	_ok(Session.cmd_try_fire().ok, "unpause allows fire")
+
+
+func _direct_box_height(node: Node) -> float:
+	for child in node.get_children():
+		if child is CollisionShape3D and (child as CollisionShape3D).shape is BoxShape3D:
+			return ((child as CollisionShape3D).shape as BoxShape3D).size.y
+	return 0.0
 
 
 func _resource_restock() -> void:

@@ -6,7 +6,8 @@ extends Node
 ## Views listen to GameBus. A later networked host can own this same API.
 ##
 ## Pause: `set_paused(true)` freezes `tick` (rest, respawn, fire/turret
-## cooldowns, reload). PauseMenu also pauses the scene tree so views stop.
+## cooldowns, reload) and rejects `cmd_try_fire`, `cmd_try_turret_fire`,
+## and `cmd_trap_pulse`. PauseMenu also pauses the scene tree so views stop.
 ## That is a full sim halt, not a HUD-only overlay.
 
 const TURRET_INTERVAL := 0.4
@@ -241,7 +242,7 @@ func cmd_damage_mob(target: Node, amount: float) -> bool:
 
 
 func cmd_try_turret_fire(serial: int, target: Node, damage: float = TURRET_DAMAGE, interval: float = TURRET_INTERVAL) -> bool:
-	if not state.is_running():
+	if sim_paused or not state.is_running():
 		return false
 	if not state.building_hp.has(serial) or float(state.building_hp[serial]) <= 0.0:
 		return false
@@ -254,7 +255,7 @@ func cmd_try_turret_fire(serial: int, target: Node, damage: float = TURRET_DAMAG
 
 
 func cmd_trap_pulse(serial: int, target: Node, delta: float, dps: float = TRAP_DPS) -> bool:
-	if not state.is_running() or delta <= 0.0:
+	if sim_paused or not state.is_running() or delta <= 0.0:
 		return false
 	if not state.building_hp.has(serial) or float(state.building_hp[serial]) <= 0.0:
 		return false
@@ -271,7 +272,7 @@ func cmd_select_weapon(i: int) -> bool:
 
 
 func cmd_try_fire() -> Dictionary:
-	if not state.is_running() or not state.player_alive:
+	if sim_paused or not state.is_running() or not state.player_alive:
 		return {ok = false, reason = "Cannot fire."}
 	if state.reload_remaining > 0.0:
 		return {ok = false, reason = "Reloading."}

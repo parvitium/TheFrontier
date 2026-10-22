@@ -1,12 +1,16 @@
 extends Node
 
 ## Boots the arena for real wall-clock seconds and checks the sim ticked.
+## Spawns one live MobActor and verifies it moves and takes Session damage.
 ## Usage: godot --headless --path . --scene res://tests/smoke_arena.tscn -- --mode=survive --seconds=3
 
 var _mode: String = Ids.MODE_SURVIVE
 var _seconds: float = 3.0
 var _wall_start: int = 0
 var _finished: bool = false
+var _probe: MobActor
+var _probe_start: Vector3 = Vector3.ZERO
+var _probe_ready: bool = false
 
 
 func _ready() -> void:
@@ -18,6 +22,7 @@ func _ready() -> void:
 	_wall_start = Time.get_ticks_msec()
 	var arena: Node = load("res://scenes/world/arena.tscn").instantiate()
 	add_child(arena)
+	call_deferred("_spawn_probe_mob")
 
 
 func _parse_args() -> void:
@@ -26,6 +31,27 @@ func _parse_args() -> void:
 			_mode = arg.substr(7)
 		elif arg.begins_with("--seconds="):
 			_seconds = maxf(1.0, float(arg.substr(10)))
+
+
+func _spawn_probe_mob() -> void:
+	var arena := get_node_or_null("Arena")
+	if arena == null:
+		return
+	var def := MobCatalog.by_id(Ids.RUSHER)
+	if def == null:
+		return
+	var mob := MobActor.new()
+	mob.name = "SmokeProbeMob"
+	mob.configure(def)
+	arena.add_child(mob)
+	mob.global_position = Vector3(12, 0.2, 0)
+	Session.cmd_mob_spawned()
+	_probe = mob
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if is_instance_valid(mob):
+		_probe_start = mob.global_position
+		_probe_ready = true
 
 
 func _process(_delta: float) -> void:
@@ -60,7 +86,25 @@ func _check() -> void:
 	if Session.state.elapsed_time < minf(1.0, _seconds * 0.4):
 		_fail("sim did not tick (elapsed=%.2f)" % Session.state.elapsed_time)
 		return
-	print("SMOKE OK mode=%s wall>=%.1fs sim=%.2fs relics=%d" % [_mode, _seconds, Session.state.elapsed_time, get_tree().get_nodes_in_group("relics").size()])
+	if not _probe_ready or not is_instance_valid(_probe):
+		_fail("live MobActor missing")
+		return
+	var traveled := _probe.global_position.distance_to(_probe_start)
+	if traveled < 0.25:
+		_fail("MobActor did not move (d=%.2f)" % traveled)
+		return
+	var health := _probe.get_node_or_null("Health") as Health
+	if health == null:
+		_fail("MobActor has no Health")
+		return
+	var before := health.current
+	if not Session.cmd_damage_mob(_probe, 12.0):
+		_fail("cmd_damage_mob rejected live MobActor")
+		return
+	if health.current >= before:
+		_fail("MobActor HP unchanged after Session damage")
+		return
+	print("SMOKE OK mode=%s wall>=%.1fs sim=%.2fs relics=%d mob_move=%.2f mob_hp=%.1f" % [_mode, _seconds, Session.state.elapsed_time, get_tree().get_nodes_in_group("relics").size(), traveled, health.current])
 	get_tree().quit(0)
 
 

@@ -32,7 +32,8 @@ Playable FPS + core defense loop with four data-driven modes, three mobs, four s
 
 ### Multiplayer (later)
 
-- Promote `Session` to a host-only authority (economy, combat resolution, building HP, and ammo already live there).
+- Promote `Session` toward a host-only authority. Economy, placement, win eval, building HP, ammo, and command-level combat already go through Session.
+- Still view-side today: mob HP is a local `Health` node (`cmd_damage_mob` applies it), hitscan rays / turret LOS / trap overlap live in views, and building actors spawn from `BuilderController` on `GameBus.building_placed` rather than from Session.
 - Replicate `GameState` snapshots + `GameBus` events.
 - Send intents: move, look, fire, reload, gather, place, dismantle.
 - Keep catalogs, `WinEvaluator`, and `BreachRules` shared and deterministic.
