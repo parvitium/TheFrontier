@@ -92,6 +92,7 @@ func _ready() -> void:
 	_cross.offset_right = 2
 	_cross.offset_top = -2
 	_cross.offset_bottom = 2
+	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_cross)
 	GameBus.banner.connect(_on_banner)
 	_on_banner("Fortify the core. Waves will not wait.")

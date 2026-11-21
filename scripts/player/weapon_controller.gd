@@ -68,7 +68,9 @@ func _hitscan(camera: Camera3D, shot: Dictionary, muzzle_pos: Vector3) -> void:
 	var damage := float(shot.damage)
 	var spread := float(shot.spread)
 	var reach := float(shot.range)
-	var host := camera.get_tree().current_scene
+	var host: Node = camera.get_tree().current_scene
+	if host == null or not host is Node3D:
+		host = camera
 	for _i in pellets:
 		var hit := Hitscan.fire(space, origin, forward, reach, exclude, damage, self, spread)
 		var dest: Vector3

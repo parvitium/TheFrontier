@@ -22,6 +22,8 @@ func _ready() -> void:
 	_session_pause()
 	_resource_restock()
 	_settings_and_visuals()
+	_player_hit_combat_fx()
+	_mouse_look_and_capture()
 	_terrain_and_seating()
 	print("Passed: %d  Failed: %d" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
@@ -437,6 +439,7 @@ func _settings_and_visuals() -> void:
 	var prev_q: int = GameSettings.quality
 	var prev_fov: float = GameSettings.fov
 	var prev_sens: float = GameSettings.mouse_sensitivity
+	var prev_invert: bool = GameSettings.invert_y
 	GameSettings.set_quality(GameSettings.Quality.LOW)
 	_ok(GameSettings.quality == GameSettings.Quality.LOW, "quality low")
 	GameSettings.set_quality(GameSettings.Quality.ULTRA)
@@ -445,6 +448,12 @@ func _settings_and_visuals() -> void:
 	_ok(is_equal_approx(GameSettings.fov, 90.0), "fov set")
 	GameSettings.set_mouse_sensitivity(1.4)
 	_ok(is_equal_approx(GameSettings.mouse_sensitivity, 1.4), "sensitivity set")
+	GameSettings.set_invert_y(true)
+	_ok(GameSettings.invert_y, "invert y set")
+	GameSettings.save_to_disk()
+	GameSettings.invert_y = false
+	GameSettings.load_from_disk()
+	_ok(GameSettings.invert_y, "invert y persists")
 	var env := WorldLook.make_environment(false)
 	_ok(env.tonemap_mode == Environment.TONE_MAPPER_AGX, "AgX tonemapper")
 	_ok(env.glow_enabled, "glow enabled on env")
@@ -555,6 +564,7 @@ func _settings_and_visuals() -> void:
 	GameSettings.set_quality(prev_q)
 	GameSettings.set_fov(prev_fov)
 	GameSettings.set_mouse_sensitivity(prev_sens)
+	GameSettings.set_invert_y(prev_invert)
 
 
 func _terrain_and_seating() -> void:
@@ -610,6 +620,84 @@ func _terrain_and_seating() -> void:
 	root.free()
 	_ok(CreditsPanel.markdown_to_bbcode("# Title\n| A | B |\n| --- | --- |\n| one | two |").find("[b]A[/b]") != -1, "markdown tables become formatted credits")
 	_ok(CreditsPanel.markdown_to_bbcode("# Title").find("|") == -1, "formatted credits drop raw table pipes")
+
+
+func _player_hit_combat_fx() -> void:
+	print("player hit combat fx")
+	_boot(Ids.MODE_SURVIVE)
+	var host := Node3D.new()
+	host.name = "Arena"
+	add_child(host)
+	var probe := CombatFx.new()
+	_ok(probe is Node3D, "CombatFx is a Node3D")
+	probe.free()
+	var dest := Vector3(3.0, 1.25, -6.0)
+	var muzzle := Vector3(0.2, 1.5, 0.4)
+	for _pellet in 8:
+		CombatFx.impact(host, dest)
+		CombatFx.tracer(host, muzzle, dest)
+	var impacts: int = 0
+	var tracers: int = 0
+	var placed: bool = true
+	for child in host.get_children():
+		if not child is CombatFx:
+			continue
+		var fx := child as CombatFx
+		if fx.get_child_count() > 0 and fx.get_child(0) is GPUParticles3D:
+			impacts += 1
+			placed = placed and fx.global_position.distance_to(dest) < 0.001
+		elif fx.get_child_count() > 0 and fx.get_child(0) is MeshInstance3D:
+			tracers += 1
+	_ok(impacts == 8, "player-hit path spawned impact FX per pellet")
+	_ok(tracers == 8, "player-hit path spawned tracer FX per pellet")
+	_ok(placed, "impact FX sits at the hit location")
+	var kids: Array[Node] = host.get_children()
+	for child2 in kids:
+		if child2 is CombatFx:
+			(child2 as CombatFx)._process(0.5)
+	_ok(is_instance_valid(host), "player-hit FX process did not free the arena host")
+	host.free()
+
+
+func _mouse_look_and_capture() -> void:
+	print("mouse look and capture")
+	_boot(Ids.MODE_SURVIVE)
+	_ok(PlayerController.gameplay_mouse_mode(false) == Input.MOUSE_MODE_CAPTURED, "gameplay captures mouse")
+	_ok(PlayerController.gameplay_mouse_mode(true) == Input.MOUSE_MODE_VISIBLE, "pause releases mouse")
+	_ok(PlayerController.gameplay_mouse_mode(false, true) == Input.MOUSE_MODE_VISIBLE, "menus release mouse")
+	_ok(PlayerController.gameplay_mouse_mode(true, true) == Input.MOUSE_MODE_VISIBLE, "paused menu keeps mouse visible")
+	var pause := PauseMenu.new()
+	add_child(pause)
+	pause._pause()
+	_ok(Session.sim_paused and get_tree().paused, "pause menu pauses sim and tree")
+	_ok(PlayerController.gameplay_mouse_mode(get_tree().paused) == Input.MOUSE_MODE_VISIBLE, "pause transition wants visible mouse")
+	pause._resume()
+	_ok(not Session.sim_paused and not get_tree().paused, "resume unpauses sim and tree")
+	_ok(PlayerController.gameplay_mouse_mode(get_tree().paused) == Input.MOUSE_MODE_CAPTURED, "resume transition wants captured mouse")
+	pause._pause()
+	pause._resume()
+	_ok(PlayerController.gameplay_mouse_mode(get_tree().paused) == Input.MOUSE_MODE_CAPTURED, "second resume recaptures")
+	pause.free()
+	var prev_invert: bool = GameSettings.invert_y
+	var prev_sens: float = GameSettings.mouse_sensitivity
+	GameSettings.set_invert_y(false)
+	GameSettings.set_mouse_sensitivity(1.0)
+	var player := PlayerController.new()
+	add_child(player)
+	var yaw0: float = player.rotation.y
+	player.apply_look(Vector2(40.0, 30.0))
+	_ok(player.rotation.y < yaw0, "mouse x yaws the body")
+	_ok(player.look_pitch > 0.0, "mouse down looks down")
+	_ok(is_equal_approx(player.get_node("Camera3D").rotation.x, player.look_pitch), "pitch is applied to the camera")
+	player.look_pitch = 0.0
+	GameSettings.set_invert_y(true)
+	player.apply_look(Vector2(0.0, 30.0))
+	_ok(player.look_pitch < 0.0, "invert y looks up on mouse down")
+	player.apply_look(Vector2(0.0, 100000.0))
+	_ok(is_equal_approx(player.look_pitch, deg_to_rad(-85.0)), "pitch is clamped")
+	player.free()
+	GameSettings.set_invert_y(prev_invert)
+	GameSettings.set_mouse_sensitivity(prev_sens)
 
 
 func _pipe_row_is_raw_markdown() -> bool:

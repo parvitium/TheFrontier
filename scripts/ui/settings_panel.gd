@@ -17,6 +17,7 @@ func _ready() -> void:
 	ThemeUtil.font_color(title, Color(0.85, 0.95, 0.92))
 	box.add_child(title)
 	_slider(box, "Mouse sensitivity", GameSettings.mouse_sensitivity, 0.3, 2.5, func(v: float) -> void: GameSettings.set_mouse_sensitivity(v))
+	_checkbox(box, "Invert Y axis", GameSettings.invert_y, func(on: bool) -> void: GameSettings.set_invert_y(on))
 	_slider(box, "Field of view", GameSettings.fov, 60.0, 100.0, func(v: float) -> void: GameSettings.set_fov(v), 0)
 	_slider(box, "Master volume", GameSettings.master_volume, 0.0, 1.0, func(v: float) -> void: GameSettings.set_master_volume(v))
 	_slider(box, "Effects volume", GameSettings.sfx_volume, 0.0, 1.0, func(v: float) -> void: GameSettings.set_sfx_volume(v))
@@ -43,6 +44,18 @@ func _ready() -> void:
 		closed.emit()
 	)
 	box.add_child(back)
+
+
+func _checkbox(parent: Control, label_text: String, value: bool, cb: Callable) -> void:
+	var box := CheckBox.new()
+	box.text = label_text
+	box.button_pressed = value
+	box.toggled.connect(func(on: bool) -> void:
+		Sfx.play("ui_click")
+		cb.call(on)
+	)
+	box.add_theme_color_override("font_color", Color(0.72, 0.8, 0.78))
+	parent.add_child(box)
 
 
 func _slider(parent: Control, label_text: String, value: float, mn: float, mx: float, cb: Callable, decimals: int = 2) -> void:

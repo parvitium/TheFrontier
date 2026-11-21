@@ -7,6 +7,7 @@ enum Quality { LOW, MEDIUM, HIGH, ULTRA }
 const PATH := "user://settings.cfg"
 
 var mouse_sensitivity: float = 1.0
+var invert_y: bool = false
 var fov: float = 78.0
 var master_volume: float = 0.8
 var sfx_volume: float = 1.0
@@ -25,6 +26,11 @@ func _ready() -> void:
 
 func set_mouse_sensitivity(v: float) -> void:
 	mouse_sensitivity = clampf(v, 0.3, 2.5)
+	_emit_save()
+
+
+func set_invert_y(v: bool) -> void:
+	invert_y = v
 	_emit_save()
 
 
@@ -111,6 +117,7 @@ func load_from_disk() -> void:
 	if cfg.load(PATH) != OK:
 		return
 	mouse_sensitivity = float(cfg.get_value("input", "mouse_sensitivity", mouse_sensitivity))
+	invert_y = bool(cfg.get_value("input", "invert_y", invert_y))
 	fov = float(cfg.get_value("input", "fov", fov))
 	master_volume = float(cfg.get_value("audio", "master_volume", master_volume))
 	sfx_volume = float(cfg.get_value("audio", "sfx_volume", sfx_volume))
@@ -125,6 +132,7 @@ func load_from_disk() -> void:
 func save_to_disk() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("input", "mouse_sensitivity", mouse_sensitivity)
+	cfg.set_value("input", "invert_y", invert_y)
 	cfg.set_value("input", "fov", fov)
 	cfg.set_value("audio", "master_volume", master_volume)
 	cfg.set_value("audio", "sfx_volume", sfx_volume)
