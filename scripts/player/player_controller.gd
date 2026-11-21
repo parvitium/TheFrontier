@@ -107,7 +107,8 @@ func apply_look(relative: Vector2) -> void:
 	var pitch_delta := relative.y * sens
 	if GameSettings.invert_y:
 		pitch_delta = -pitch_delta
-	look_pitch = clampf(look_pitch + pitch_delta, deg_to_rad(-85.0), deg_to_rad(85.0))
+	# Camera3D.rotation.x > 0 looks up; mouse down is +relative.y, so subtract.
+	look_pitch = clampf(look_pitch - pitch_delta, deg_to_rad(-85.0), deg_to_rad(85.0))
 	if _camera:
 		_camera.rotation.x = look_pitch
 
