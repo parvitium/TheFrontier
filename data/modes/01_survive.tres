@@ -6,9 +6,9 @@
 script = ExtResource("1")
 id = "survive"
 display_name = "Survive"
-description = "Hold the core through 3 waves. The planet does not care if you are ready."
+description = "Hold the core through a wave gauntlet. The planet does not care if you are ready."
 kind = 0
-survive_waves = 3
+survive_waves = 10
 survive_seconds = 0.0
 gather_count = 0
 relics_on_map = 0

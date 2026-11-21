@@ -75,10 +75,10 @@ static func _spawns(arena: Node3D) -> void:
 	var holder := Node3D.new()
 	holder.name = "SpawnPoints"
 	arena.add_child(holder)
-	var radius := 30.0
-	for i in 8:
-		var angle := TAU * float(i) / 8.0
+	var i := 0
+	for pos in SpawnRules.ring_points():
 		var marker := Marker3D.new()
 		marker.name = "Spawn_%d" % i
-		marker.position = Landscape.seat(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius), 0.15)
+		marker.position = Landscape.seat(pos, 0.15)
 		holder.add_child(marker)
+		i += 1

@@ -5,6 +5,7 @@ var _camera: Camera3D
 var _orbit: float = 0.35
 var _home: Control
 var _play: Control
+var _survive: Control
 var _settings: SettingsPanel
 var _credits: CreditsPanel
 var _subtitle: Label
@@ -123,9 +124,32 @@ func _build_ui() -> void:
 		button.custom_minimum_size = Vector2(0, 64)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.pressed.connect(_start.bind(mode.id))
+		if mode.kind == GameModeDef.Kind.SURVIVE:
+			button.pressed.connect(func() -> void:
+				Sfx.play("ui_click")
+				_show_survive()
+			)
+		else:
+			button.pressed.connect(_start.bind(mode.id))
 		_play.add_child(button)
 	_play.add_child(_btn("Back", _show_home, true))
+	_survive = VBoxContainer.new()
+	_survive.visible = false
+	_survive.add_theme_constant_override("separation", 8)
+	col.add_child(_survive)
+	var survive_title := Label.new()
+	survive_title.text = "SURVIVE — HOW MANY WAVES"
+	survive_title.add_theme_font_size_override("font_size", 16)
+	ThemeUtil.font_color(survive_title, Color(0.9, 0.86, 0.7))
+	_survive.add_child(survive_title)
+	for waves in SurviveOptions.choices():
+		var wave_btn := ThemeUtil.menu_button(SurviveOptions.button_label(waves))
+		wave_btn.custom_minimum_size = Vector2(0, 56)
+		wave_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		wave_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wave_btn.pressed.connect(_start_survive.bind(waves))
+		_survive.add_child(wave_btn)
+	_survive.add_child(_btn("Back", _show_play, true))
 	_settings = SettingsPanel.new()
 	_settings.visible = false
 	_settings.closed.connect(_show_home)
@@ -154,6 +178,7 @@ func _btn(text: String, cb: Callable, back: bool = false) -> Button:
 func _show_home() -> void:
 	_home.visible = true
 	_play.visible = false
+	_survive.visible = false
 	_settings.visible = false
 	_credits.visible = false
 
@@ -161,6 +186,15 @@ func _show_home() -> void:
 func _show_play() -> void:
 	_home.visible = false
 	_play.visible = true
+	_survive.visible = false
+	_settings.visible = false
+	_credits.visible = false
+
+
+func _show_survive() -> void:
+	_home.visible = false
+	_play.visible = false
+	_survive.visible = true
 	_settings.visible = false
 	_credits.visible = false
 
@@ -168,6 +202,7 @@ func _show_play() -> void:
 func _show_settings() -> void:
 	_home.visible = false
 	_play.visible = false
+	_survive.visible = false
 	_settings.visible = true
 	_credits.visible = false
 
@@ -175,8 +210,14 @@ func _show_settings() -> void:
 func _show_credits() -> void:
 	_home.visible = false
 	_play.visible = false
+	_survive.visible = false
 	_settings.visible = false
 	_credits.visible = true
+
+
+func _start_survive(waves: int) -> void:
+	Session.selected_survive_waves = maxi(0, waves)
+	_start(Ids.MODE_SURVIVE)
 
 
 func _start(mode_id: String) -> void:

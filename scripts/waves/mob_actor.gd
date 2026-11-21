@@ -11,6 +11,10 @@ var _ranged_cd: float = 0.0
 var _retarget: float = 0.0
 var _agent: NavigationAgent3D
 var _focus: Node3D
+var _idle_time: float = 0.0
+var _stuck_anchor: Vector3 = Vector3.ZERO
+var _recoveries: int = 0
+var _anchor_ready: bool = false
 
 
 func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -> void:
@@ -53,6 +57,8 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	health.configure(def.max_health * hp_mult, "mob")
 	health.died.connect(_on_died)
 	add_child(health)
+	_stuck_anchor = global_position
+	_anchor_ready = true
 
 
 func apply_slow(factor: float, duration: float) -> void:
@@ -82,17 +88,20 @@ func _physics_process(delta: float) -> void:
 		_try_ranged()
 		if dist < def.preferred_range * 0.75:
 			_move(-to_focus.normalized(), delta)
+			_update_stuck(delta, true)
 			return
 		if dist <= def.preferred_range:
 			velocity.x = 0.0
 			velocity.z = 0.0
 			velocity.y -= 18.0 * delta
 			move_and_slide()
+			_update_stuck(delta, true)
 			return
-	if dist <= def.melee_range + 0.2:
+	if dist <= MobStuck.melee_reach(def, _focus):
 		_try_melee(_focus)
 	_chase(_focus, delta)
 	_maybe_break_walls()
+	_update_stuck(delta, MobStuck.is_engaged(dist, def, _focus))
 
 
 func _chase(target: Node3D, delta: float) -> void:
@@ -246,6 +255,79 @@ func _deal(target: Object, amount: float) -> void:
 	if target == null or not target is Node:
 		return
 	Session.cmd_resolve_hit("mob", target, amount)
+
+
+func _update_stuck(delta: float, engaged: bool) -> void:
+	if not _anchor_ready:
+		_stuck_anchor = global_position
+		_anchor_ready = true
+	var stuck: Dictionary = MobStuck.update(_idle_time, _stuck_anchor, global_position, delta, engaged)
+	_idle_time = float(stuck.idle)
+	_stuck_anchor = stuck.anchor as Vector3
+	if bool(stuck.moved):
+		_recoveries = 0
+		return
+	var action: int = MobStuck.choose_action(_idle_time, _recoveries)
+	if action == MobStuck.Action.NONE:
+		return
+	_recover(action)
+	_idle_time = 0.0
+	_stuck_anchor = global_position
+
+
+func _recover(action: int) -> void:
+	match action:
+		MobStuck.Action.REPATH:
+			_snap_to_nav()
+			_retarget = 0.0
+			if is_instance_valid(_focus) and _agent:
+				_agent.target_position = _focus.global_position
+			_recoveries += 1
+		MobStuck.Action.NUDGE:
+			_nudge_off_obstacle()
+			_snap_to_nav()
+			_retarget = 0.0
+			_recoveries += 1
+		MobStuck.Action.RESPAWN:
+			_respawn_on_ring()
+			_recoveries = 0
+			velocity = Vector3.ZERO
+
+
+func _snap_to_nav() -> void:
+	if _agent == null:
+		return
+	var map: RID = _agent.get_navigation_map()
+	if not map.is_valid():
+		return
+	var closest: Vector3 = NavigationServer3D.map_get_closest_point(map, global_position)
+	var d: float = closest.distance_to(global_position)
+	if d > 0.25 and d < 12.0:
+		global_position = closest + Vector3(0.0, 0.06, 0.0)
+
+
+func _nudge_off_obstacle() -> void:
+	var forward := Vector3(0.0, 0.0, -1.0)
+	if is_instance_valid(_focus):
+		forward = _focus.global_position - global_position
+	elif _agent:
+		forward = _agent.get_next_path_position() - global_position
+	var cover: Array[Vector3] = Landscape.colliding_cover_positions()
+	for offset in MobStuck.nudge_offsets(forward):
+		var trial: Vector3 = Landscape.seat(global_position + offset, 0.2)
+		if SpawnRules.is_walkable(trial, cover):
+			global_position = trial
+			return
+	global_position = Landscape.seat(global_position + Vector3(1.1, 0.0, 0.8), 0.2)
+
+
+func _respawn_on_ring() -> void:
+	var director := get_parent().get_node_or_null("WaveDirector") as WaveDirector
+	if director:
+		global_position = director.next_spawn_point()
+	else:
+		global_position = Landscape.seat(Vector3(22.0, 0.0, 8.0), 0.2)
+	_snap_to_nav()
 
 
 func _on_died(_source: Node) -> void:

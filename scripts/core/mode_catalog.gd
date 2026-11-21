@@ -35,9 +35,9 @@ static func _survive() -> GameModeDef:
 	var m := GameModeDef.new()
 	m.id = Ids.MODE_SURVIVE
 	m.display_name = "Survive"
-	m.description = "Hold the core through 3 waves. The planet does not care if you are ready."
+	m.description = "Hold the core through a wave gauntlet. The planet does not care if you are ready."
 	m.kind = GameModeDef.Kind.SURVIVE
-	m.survive_waves = 3
+	m.survive_waves = SurviveOptions.DEFAULT
 	m.starting_scrap = 45
 	m.starting_crystal = 16
 	m.rest_seconds = 22.0

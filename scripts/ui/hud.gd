@@ -110,9 +110,9 @@ func _process(delta: float) -> void:
 	elif state.phase == GameState.Phase.DEFEAT:
 		phase = "DEFEAT"
 	if state.phase == GameState.Phase.REST:
-		_phase.text = "REST  %.0fs   ·  next wave %d" % [state.rest_remaining, state.wave_index + 1]
+		_phase.text = WaveHud.rest_line(state.rest_remaining, state.wave_index + 1, Session.wave_goal(), Session.is_wave_endless())
 	elif state.phase == GameState.Phase.WAVE:
-		_phase.text = "WAVE %d   ·  hostiles %d" % [state.wave_index, state.mobs_alive]
+		_phase.text = WaveHud.wave_line(state.wave_index, Session.wave_goal(), Session.is_wave_endless(), state.mobs_alive)
 	else:
 		_phase.text = phase
 	_objective.text = _objective_text(mode, state)
@@ -135,7 +135,7 @@ func _process(delta: float) -> void:
 func _objective_text(mode: GameModeDef, state: GameState) -> String:
 	match mode.kind:
 		GameModeDef.Kind.SURVIVE:
-			return "Survive %d waves  (%d done)" % [mode.survive_waves, state.waves_completed]
+			return WaveHud.objective_survive(mode.survive_waves, state.waves_completed)
 		GameModeDef.Kind.GATHER:
 			return "Recover relics  %d / %d" % [state.relics_collected, mode.gather_count]
 		GameModeDef.Kind.ESCAPE:

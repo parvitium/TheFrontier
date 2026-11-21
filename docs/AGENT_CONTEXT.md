@@ -57,7 +57,7 @@ Nav-blocking building colliders fill the 2 m cell (`BuildingBase.footprint_colli
 
 Add a mode: create `data/modes/05_whatever.tres` (`GameModeDef`) or extend `ModeCatalog`. Menu reads `ModeCatalog.all()`.
 
-Add a wave: edit the tables in `WaveCatalog.campaign_waves()`. Endless growth is `WaveScaler.scale(n)` — keep it a pure function so tests stay cheap.
+Add a wave: edit the tables in `WaveCatalog.campaign_waves()`. After the authored opening, `WaveScaler.scale(n)` continues the ramp for Survive (10/20/30/50/Endless) and Endless mode — keep it a pure function so tests stay cheap. Survive length is `Session.selected_survive_waves` (`SurviveOptions`).
 
 Add a building: `BuildingDef` in `BuildingCatalog`, a `BuildingBase` subclass, and a branch in `BuildingFactory`. Register HP through `Session.cmd_try_place`.
 
@@ -71,12 +71,13 @@ Add a weapon: `WeaponDef` in `WeaponCatalog`. Session equips the catalog in orde
 - Navmesh lives under `Arena/NavigationRegion3D`. Walls parent into `Obstacles` and set `GameBus.nav_dirty` so the region rebakes.
 - Collision layers: 1 world, 2 player, 3 mobs, 4 buildings, 5 projectiles, 6 core, 7 resources.
 - Target bias: rusher hybrid (player inside aggro, else core), ranger prefers player, tank always core. If the core is unreachable, mobs breach the blocking buildings.
+- Melee reach includes the mob radius plus the target collider (the core is a 1.6 m cylinder). `MobStuck` re-paths, nudges, then respawns a mob that has not displaced for 2.5 s. Spawn picks cycle a walkable ring via `SpawnRules` and snap to the navmesh.
 - Player hitscan uses mask `1|4|8` so walls block shots, but `cmd_resolve_hit("player", …)` refuses damage to friendly buildings.
 - Rest phases restock resource nodes to full (including partial drains) and a fraction of reserve ammo.
 
 ## Death and outcomes
 
-`WinEvaluator` is the only win/lose decoder. Survive uses `survive_waves` and/or `survive_seconds`. Gather uses `relics_collected`. Escape uses `escape_ship_built`. Endless never returns victory. Core `<= 0` is always defeat.
+`WinEvaluator` is the only win/lose decoder. Survive uses `survive_waves` (0 = Endless) and/or `survive_seconds`. The HUD prints wave X/Y or Endless. Gather uses `relics_collected`. Escape uses `escape_ship_built`. Endless never returns victory. Core `<= 0` is always defeat.
 
 Player HP, building HP, and ammo are session-authored. Local `Health` on the player/core/buildings is a mirror.
 

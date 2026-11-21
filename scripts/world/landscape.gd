@@ -33,6 +33,14 @@ static var _cover_spots: Array[Vector3] = [
 ]
 
 
+static func colliding_cover_positions() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var limit: int = mini(8, _cover_spots.size())
+	for i in limit:
+		out.append(_cover_spots[i])
+	return out
+
+
 static func height_at(x: float, z: float) -> float:
 	var r := sqrt(x * x + z * z)
 	var n1 := _vnoise(x, z, 0.028)
@@ -188,7 +196,7 @@ static func plant_rock(parent: Node3D, pos: Vector3, seed: int, collide: bool = 
 		body.position = Vector3(pos.x, ground_y + sy * 0.18, pos.z)
 		var col := CollisionShape3D.new()
 		var shape := SphereShape3D.new()
-		shape.radius = maxf(sx, sz) * 0.42
+		shape.radius = maxf(sx, sz) * 0.30
 		col.shape = shape
 		body.add_child(col)
 		parent.add_child(body)
@@ -587,7 +595,7 @@ static func _cover_rocks(parent: Node3D) -> void:
 			body.position = Vector3(pos.x, ground_y + sy * 0.18, pos.z)
 			var col := CollisionShape3D.new()
 			var shape := SphereShape3D.new()
-			shape.radius = maxf(sx, sz) * 0.42
+			shape.radius = maxf(sx, sz) * 0.30
 			col.shape = shape
 			body.add_child(col)
 			holder.add_child(body)

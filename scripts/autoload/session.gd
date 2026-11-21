@@ -17,6 +17,7 @@ const TRAP_DPS := 8.0
 var state: GameState = GameState.new()
 var mode: GameModeDef = ModeCatalog.by_id(Ids.MODE_SURVIVE)
 var selected_mode_id: String = Ids.MODE_SURVIVE
+var selected_survive_waves: int = SurviveOptions.DEFAULT
 var last_outcome: int = WinEvaluator.Outcome.NONE
 var last_stats: Dictionary = {}
 var sim_paused: bool = false
@@ -26,6 +27,9 @@ func start_run(mode_id: String = "") -> void:
 	if mode_id != "":
 		selected_mode_id = mode_id
 	mode = ModeCatalog.by_id(selected_mode_id)
+	if mode.kind == GameModeDef.Kind.SURVIVE:
+		mode = mode.duplicate()
+		mode.survive_waves = maxi(0, selected_survive_waves)
 	state = GameState.new()
 	state.begin(mode)
 	last_outcome = WinEvaluator.Outcome.NONE
@@ -375,7 +379,19 @@ func cmd_add_score(amount: int) -> void:
 
 
 func current_wave_spec() -> WaveSpec:
-	return WaveCatalog.wave_for(state.wave_index, mode.kind == GameModeDef.Kind.ENDLESS)
+	return WaveCatalog.wave_for(state.wave_index, is_wave_endless())
+
+
+func wave_goal() -> int:
+	if mode == null or mode.kind != GameModeDef.Kind.SURVIVE:
+		return 0
+	return mode.survive_waves
+
+
+func is_wave_endless() -> bool:
+	if mode == null:
+		return false
+	return WaveHud.is_endless_goal(mode.kind, mode.survive_waves)
 
 
 func _building_allowed(def: BuildingDef) -> bool:
@@ -444,7 +460,7 @@ func _begin_wave() -> void:
 	state.mobs_to_spawn_this_wave = spec.total_mobs()
 	GameBus.phase_changed.emit(state.phase)
 	GameBus.wave_started.emit(state.wave_index)
-	GameBus.banner.emit("Wave %d incoming." % state.wave_index)
+	GameBus.banner.emit("Wave %s incoming." % WaveHud.index_text(state.wave_index, wave_goal(), is_wave_endless()))
 
 
 func _clear_wave() -> void:
