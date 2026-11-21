@@ -42,7 +42,7 @@ func _on_ended(outcome: int, stats: Dictionary) -> void:
 	get_tree().paused = true
 	_root.visible = true
 	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		Input.mouse_mode = PlayerController.gameplay_mouse_mode(true, false)
 	if outcome == WinEvaluator.Outcome.VICTORY:
 		_title.text = "EXTRACTED"
 		ThemeUtil.font_color(_title, Color(0.4, 0.95, 0.7))
@@ -69,7 +69,7 @@ func _menu() -> void:
 	Session.set_paused(false)
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		Input.mouse_mode = PlayerController.gameplay_mouse_mode(false, true)
 	get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
 
 

@@ -35,8 +35,7 @@ func _ready() -> void:
 	GameBus.player_died.connect(_on_died)
 	GameBus.player_respawned.connect(_on_respawned)
 	GameBus.player_health_changed.connect(_sync_health)
-	if not _is_headless():
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	sync_mouse_mode()
 
 
 func _build_body() -> void:
@@ -60,14 +59,21 @@ func _build_body() -> void:
 	add_child(visual)
 
 
+func _input(event: InputEvent) -> void:
+	if _is_headless() or not Session.state.player_alive or get_tree().paused:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			sync_mouse_mode()
+			get_viewport().set_input_as_handled()
+			return
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		apply_look(event.relative)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_headless() or not Session.state.player_alive or get_tree().paused:
 		return
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var sens := MOUSE_SENS * GameSettings.mouse_sensitivity
-		rotate_y(-event.relative.x * sens)
-		look_pitch = clampf(look_pitch - event.relative.y * sens, deg_to_rad(-85.0), deg_to_rad(85.0))
-		_camera.rotation.x = look_pitch
 	if event.is_action_pressed("build_mode"):
 		_toggle_build()
 	if event.is_action_pressed("weapon_1"):
@@ -76,6 +82,35 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("weapon_2"):
 		_set_build(false)
 		_weapons.equip(1)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
+		sync_mouse_mode()
+
+
+static func gameplay_mouse_mode(paused: bool, in_menu: bool = false) -> Input.MouseMode:
+	if paused or in_menu:
+		return Input.MOUSE_MODE_VISIBLE
+	return Input.MOUSE_MODE_CAPTURED
+
+
+func sync_mouse_mode() -> void:
+	if _is_headless() or get_tree() == null:
+		return
+	Input.mouse_mode = gameplay_mouse_mode(get_tree().paused)
+
+
+func apply_look(relative: Vector2) -> void:
+	var sens := MOUSE_SENS * GameSettings.mouse_sensitivity
+	rotate_y(-relative.x * sens)
+	var pitch_delta := relative.y * sens
+	if GameSettings.invert_y:
+		pitch_delta = -pitch_delta
+	# Camera3D.rotation.x > 0 looks up; mouse down is +relative.y, so subtract.
+	look_pitch = clampf(look_pitch - pitch_delta, deg_to_rad(-85.0), deg_to_rad(85.0))
+	if _camera:
+		_camera.rotation.x = look_pitch
 
 
 func _physics_process(delta: float) -> void:
@@ -164,6 +199,7 @@ func _on_respawned() -> void:
 	velocity = Vector3.ZERO
 	look_pitch = 0.0
 	_camera.rotation.x = 0.0
+	sync_mouse_mode()
 
 
 func _sync_health(current: float, maximum: float) -> void:

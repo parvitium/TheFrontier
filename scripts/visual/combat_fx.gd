@@ -1,5 +1,5 @@
 class_name CombatFx
-extends Node
+extends Node3D
 
 var _life: float = 0.12
 var _kind: String = "tracer"
@@ -73,10 +73,12 @@ static func impact(host: Node, at: Vector3, color: Color = Color(1.0, 0.7, 0.3))
 	var fx := CombatFx.new()
 	fx._kind = "impact"
 	fx._life = 0.28
-	fx.global_position = at
 	host.add_child(fx)
+	if fx.is_inside_tree():
+		fx.global_position = at
+	else:
+		fx.position = at
 	var parts := GPUParticles3D.new()
-	parts.emitting = true
 	parts.one_shot = true
 	parts.amount = 14
 	parts.lifetime = 0.28
@@ -101,6 +103,8 @@ static func impact(host: Node, at: Vector3, color: Color = Color(1.0, 0.7, 0.3))
 	draw.material = mat
 	parts.draw_pass_1 = draw
 	fx.add_child(parts)
+	parts.emitting = true
+	parts.restart()
 	var spark := OmniLight3D.new()
 	spark.light_color = color
 	spark.light_energy = 2.8

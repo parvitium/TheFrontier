@@ -50,16 +50,14 @@ func _pause() -> void:
 	Session.set_paused(true)
 	get_tree().paused = true
 	_root.visible = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_apply_mouse_mode()
 
 
 func _resume() -> void:
 	Session.set_paused(false)
 	get_tree().paused = false
 	_root.visible = false
-	if DisplayServer.get_name() != "headless" and Session.state.player_alive:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_apply_mouse_mode()
 
 
 func _restart() -> void:
@@ -72,9 +70,14 @@ func _restart() -> void:
 func _menu() -> void:
 	Session.set_paused(false)
 	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_apply_mouse_mode(true)
 	get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+
+
+func _apply_mouse_mode(in_menu: bool = false) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	Input.mouse_mode = PlayerController.gameplay_mouse_mode(get_tree().paused, in_menu)
 
 
 func _settings() -> void:
