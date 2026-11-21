@@ -4,9 +4,11 @@ extends Node
 var _queue: Array[Dictionary] = []
 var _delay: float = 0.0
 var _active: bool = false
+var _spawn_cursor: int = 0
 
 
 func _ready() -> void:
+	add_to_group("wave_director")
 	GameBus.wave_started.connect(_on_wave_started)
 	GameBus.phase_changed.connect(_on_phase)
 
@@ -28,6 +30,7 @@ func _physics_process(delta: float) -> void:
 func _on_wave_started(_index: int) -> void:
 	var spec := Session.current_wave_spec()
 	_queue.clear()
+	_spawn_cursor = 0
 	for entry in spec.entries:
 		for _i in entry.count:
 			_queue.append({
@@ -56,25 +59,41 @@ func _spawn(item: Dictionary) -> void:
 	if bool(item.prefer_core):
 		def.target_bias = MobDef.TargetBias.CORE
 	mob.configure(def, float(item.hp), float(item.dmg))
-	mob.global_position = _spawn_point()
+	mob.global_position = next_spawn_point()
 	var arena := get_parent()
 	arena.add_child(mob)
 	Session.cmd_mob_spawned()
 
 
-func _spawn_point() -> Vector3:
-	var holder := get_parent().get_node_or_null("SpawnPoints")
-	if holder == null or holder.get_child_count() == 0:
-		return Landscape.seat(Vector3(28, 0, 0), 0.2)
+func next_spawn_point() -> Vector3:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
-	var best: Node3D = holder.get_child(0)
-	var best_d := -1.0
+	var player_pos := Vector3.ZERO
+	if player:
+		player_pos = player.global_position
+	var chosen: Vector3 = SpawnRules.pick(_candidate_positions(), player_pos, Landscape.colliding_cover_positions(), _spawn_cursor)
+	_spawn_cursor += 1
+	return _snap_nav(Landscape.seat(chosen, 0.2))
+
+
+func _candidate_positions() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var holder := get_parent().get_node_or_null("SpawnPoints")
+	if holder == null:
+		return SpawnRules.ring_points()
 	for child in holder.get_children():
 		if child is Node3D:
-			var d := 0.0
-			if player:
-				d = (child as Node3D).global_position.distance_to(player.global_position)
-			if d > best_d:
-				best_d = d
-				best = child
-	return Landscape.seat(best.global_position, 0.2)
+			out.append((child as Node3D).global_position)
+	if out.is_empty():
+		return SpawnRules.ring_points()
+	return out
+
+
+func _snap_nav(pos: Vector3) -> Vector3:
+	var maps := NavigationServer3D.get_maps()
+	if maps.is_empty():
+		return pos
+	var closest: Vector3 = NavigationServer3D.map_get_closest_point(maps[0], pos)
+	var d: float = closest.distance_to(pos)
+	if d > 0.05 and d < 8.0:
+		return closest + Vector3(0.0, 0.05, 0.0)
+	return pos

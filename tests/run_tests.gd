@@ -10,6 +10,8 @@ func _ready() -> void:
 	_building_costs()
 	_placement()
 	_wave_scaling()
+	_survive_wave_options()
+	_stuck_and_spawn()
 	_win_conditions()
 	_breach()
 	_session_survive()
@@ -38,8 +40,9 @@ func _ok(cond: bool, name: String) -> void:
 		print("  FAIL  ", name)
 
 
-func _boot(mode_id: String) -> void:
+func _boot(mode_id: String, survive_waves: int = SurviveOptions.DEFAULT) -> void:
 	Session.set_paused(false)
+	Session.selected_survive_waves = survive_waves
 	Session.start_run(mode_id)
 
 
@@ -148,6 +151,104 @@ func _wave_scaling() -> void:
 	_ok(e8.total_mobs() > e4.total_mobs(), "endless count grows")
 	_ok(e8.hp_multiplier > e4.hp_multiplier, "endless hp grows")
 	_ok(WaveCatalog.wave_for(10, true).wave_number == 10, "endless uses scaler")
+	var w4 := WaveCatalog.wave_for(4, false)
+	var w10 := WaveCatalog.wave_for(10, false)
+	var w20 := WaveCatalog.wave_for(20, false)
+	var w50 := WaveCatalog.wave_for(50, false)
+	_ok(w4.total_mobs() >= w3.total_mobs(), "wave 4 does not shrink")
+	_ok(w10.total_mobs() > w4.total_mobs(), "wave 10 ramps above wave 4")
+	_ok(w20.total_mobs() > w10.total_mobs(), "wave 20 ramps above wave 10")
+	_ok(w50.total_mobs() > w20.total_mobs(), "wave 50 ramps above wave 20")
+	_ok(w20.hp_multiplier > w10.hp_multiplier and w50.hp_multiplier > w20.hp_multiplier, "hp ramps smoothly")
+	_ok(w50.hp_multiplier < 4.0, "wave 50 hp stays playable")
+	_ok(WaveCatalog.campaign_waves().size() >= 10, "authored gauntlet covers a 10-wave hold")
+	_ok(WaveHud.wave_line(3, 10, false, 7).find("3/10") != -1, "hud wave x/y")
+	_ok(WaveHud.wave_line(3, 0, true, 7).find("Endless") != -1, "hud wave endless")
+	_ok(WaveHud.rest_line(18.0, 2, 20, false).find("2/20") != -1, "hud rest next wave x/y")
+	_ok(WaveHud.objective_survive(10, 4).find("10") != -1, "hud survive goal")
+	_ok(WaveHud.objective_survive(0, 4).find("Endless") != -1, "hud survive endless objective")
+
+
+func _survive_wave_options() -> void:
+	print("survive wave options")
+	var choices := SurviveOptions.choices()
+	_ok(choices.size() == 5 and choices[0] == 10 and choices[1] == 20 and choices[2] == 30 and choices[3] == 50 and choices[4] == 0, "survive offers 10/20/30/50/Endless")
+	_ok(SurviveOptions.DEFAULT == 10, "standard survive is 10 waves")
+	_ok(SurviveOptions.short_label(0) == "Endless", "endless short label")
+	_ok(SurviveOptions.button_label(10).find("10") != -1, "10-wave button")
+	_boot(Ids.MODE_SURVIVE)
+	_ok(Session.mode.survive_waves == 10, "session default survive is 10")
+	_ok(not Session.is_wave_endless(), "default survive is not endless")
+	_ok(Session.wave_goal() == 10, "wave goal 10")
+	for _wave in 9:
+		_clear_wave_via_session()
+	_ok(Session.state.phase == GameState.Phase.REST, "survive still running after 9 of 10")
+	_clear_wave_via_session()
+	_ok(Session.state.waves_completed == 10, "survive cleared 10 waves")
+	_ok(Session.state.phase == GameState.Phase.VICTORY, "survive wins after 10")
+	_boot(Ids.MODE_SURVIVE, 20)
+	_ok(Session.mode.survive_waves == 20, "session survive 20")
+	for _w20 in 19:
+		_clear_wave_via_session()
+	_ok(Session.state.phase != GameState.Phase.VICTORY, "20-wave survive not done at 19")
+	_clear_wave_via_session()
+	_ok(Session.state.phase == GameState.Phase.VICTORY, "survive wins after 20")
+	_boot(Ids.MODE_SURVIVE, 50)
+	_ok(Session.wave_goal() == 50, "wave goal 50")
+	_ok(WaveHud.index_text(Session.state.wave_index + 1, Session.wave_goal(), Session.is_wave_endless()).find("1/50") != -1, "hud 1/50 at rest")
+	_boot(Ids.MODE_SURVIVE, 0)
+	_ok(Session.is_wave_endless(), "survive endless flag")
+	_ok(Session.wave_goal() == 0, "endless survive has no wave cap")
+	for _end in 12:
+		_clear_wave_via_session()
+	_ok(Session.state.waves_completed == 12, "endless survive keeps counting")
+	_ok(Session.state.phase == GameState.Phase.REST, "endless survive never victories")
+	_ok(Session.last_outcome == WinEvaluator.Outcome.NONE, "endless survive outcome none")
+
+
+func _stuck_and_spawn() -> void:
+	print("stuck detection and spawn")
+	var rusher := MobCatalog.by_id(Ids.RUSHER)
+	_ok(rusher != null, "rusher def exists")
+	_ok(MobStuck.melee_reach(rusher) > rusher.melee_range, "melee reach includes own radius")
+	var core := Node3D.new()
+	core.name = "StuckTestCore"
+	add_child(core)
+	core.add_to_group("core")
+	var contact: float = 1.6 + rusher.radius
+	_ok(MobStuck.melee_reach(rusher, core) >= contact, "rusher can melee the core at contact")
+	_ok(MobStuck.is_engaged(contact, rusher, core), "contact with core is engagement")
+	_ok(not MobStuck.is_engaged(12.0, rusher, core), "far rusher is not engaged")
+	core.free()
+	var ranger := MobCatalog.by_id(Ids.RANGER)
+	_ok(MobStuck.is_engaged(13.0, ranger, null), "ranger holding range is engaged")
+	var idle: Dictionary = MobStuck.update(0.0, Vector3.ZERO, Vector3.ZERO, 0.5, false)
+	_ok(is_equal_approx(float(idle.idle), 0.5) and not bool(idle.moved), "idle accumulates when still")
+	var moved: Dictionary = MobStuck.update(1.2, Vector3.ZERO, Vector3(1.0, 0.0, 0.0), 0.5, false)
+	_ok(bool(moved.moved) and is_equal_approx(float(moved.idle), 0.0), "idle resets after 0.35m displace")
+	var meleeing: Dictionary = MobStuck.update(2.0, Vector3.ZERO, Vector3.ZERO, 0.5, true)
+	_ok(bool(meleeing.moved) and is_equal_approx(float(meleeing.idle), 0.0), "engaged mob is not stuck")
+	_ok(MobStuck.choose_action(1.0, 0) == MobStuck.Action.NONE, "short idle is not stuck")
+	_ok(MobStuck.choose_action(MobStuck.STUCK_SECONDS, 0) == MobStuck.Action.REPATH, "first stuck recovery is repath")
+	_ok(MobStuck.choose_action(MobStuck.STUCK_SECONDS, 1) == MobStuck.Action.NUDGE, "second stuck recovery is nudge")
+	_ok(MobStuck.choose_action(MobStuck.STUCK_SECONDS, 2) == MobStuck.Action.RESPAWN, "third stuck recovery is respawn")
+	_ok(MobStuck.nudge_offsets(Vector3(1, 0, 0)).size() == 5, "nudge offers 5 offsets")
+	var cover: Array[Vector3] = Landscape.colliding_cover_positions()
+	_ok(cover.size() == 8, "first eight cover rocks have collision")
+	var ring := SpawnRules.ring_points()
+	_ok(ring.size() == 8, "spawn ring has 8 points")
+	var walkable := 0
+	for pos in ring:
+		if SpawnRules.is_walkable(pos, cover):
+			walkable += 1
+			_ok(Landscape.slope_deg(pos.x, pos.z) <= SpawnRules.MAX_SLOPE_DEG, "ring spawn slope walkable")
+	_ok(walkable >= 4, "most spawn ring points are walkable")
+	var picked: Vector3 = SpawnRules.pick(ring, Vector3(0, 0, 6), cover, 0)
+	_ok(SpawnRules.is_walkable(picked, cover), "picked spawn is walkable")
+	var picked_b: Vector3 = SpawnRules.pick(ring, Vector3(0, 0, 6), cover, 1)
+	_ok(SpawnRules.horizontal_distance(picked, picked_b) > 0.5, "spawn cursor cycles away from a single pocket")
+	var rock := cover[0]
+	_ok(not SpawnRules.is_walkable(rock, cover), "cover rock itself is not a spawn")
 
 
 func _win_conditions() -> void:
@@ -159,8 +260,16 @@ func _win_conditions() -> void:
 	var state := GameState.new()
 	state.begin(survive)
 	_ok(WinEvaluator.evaluate(state, survive) == WinEvaluator.Outcome.NONE, "survive start none")
-	state.waves_completed = 3
+	_ok(survive.survive_waves == SurviveOptions.DEFAULT, "catalog survive default is 10")
+	state.waves_completed = survive.survive_waves - 1
+	_ok(WinEvaluator.evaluate(state, survive) == WinEvaluator.Outcome.NONE, "survive not yet")
+	state.waves_completed = survive.survive_waves
 	_ok(WinEvaluator.evaluate(state, survive) == WinEvaluator.Outcome.VICTORY, "survive waves")
+	var endless_hold: GameModeDef = survive.duplicate()
+	endless_hold.survive_waves = 0
+	endless_hold.survive_seconds = 0.0
+	state.waves_completed = 99
+	_ok(WinEvaluator.evaluate(state, endless_hold) == WinEvaluator.Outcome.NONE, "survive endless never wins")
 	state.waves_completed = 0
 	var timed: GameModeDef = survive.duplicate()
 	timed.survive_waves = 0
@@ -242,10 +351,11 @@ func _session_survive() -> void:
 	_ok(Session.last_outcome == WinEvaluator.Outcome.DEFEAT, "survive last outcome defeat")
 	_ok(not Session.cmd_try_place(Ids.WALL, Vector2i(5, 5)).ok, "survive refuses place after defeat")
 	_boot(Ids.MODE_SURVIVE)
-	for _wave in 3:
+	var goal: int = Session.mode.survive_waves
+	for _wave in goal:
 		_clear_wave_via_session()
-	_ok(Session.state.waves_completed == 3, "survive cleared 3 waves via Session")
-	_ok(Session.state.phase == GameState.Phase.VICTORY, "survive wins after 3 Session wave-clears")
+	_ok(Session.state.waves_completed == goal, "survive cleared default waves via Session")
+	_ok(Session.state.phase == GameState.Phase.VICTORY, "survive wins after default Session wave-clears")
 	_ok(Session.last_outcome == WinEvaluator.Outcome.VICTORY, "survive last outcome victory")
 
 
