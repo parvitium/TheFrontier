@@ -115,7 +115,8 @@ func cmd_dismantle_at(origin: Vector2i) -> Dictionary:
 		return {ok = false, reason = "Nothing to dismantle."}
 	var building_id := state.building_id_of(serial)
 	var def := BuildingCatalog.by_id(building_id)
-	var refund := Economy.refund(def.cost() if def else Economy.empty_wallet(), 0.5)
+	var tier := state.building_tier(serial)
+	var refund := BuildingValue.refund_for(building_id, tier)
 	if building_id == Ids.ESCAPE_SHIP:
 		state.escape_ship_built = false
 	_forget_building(serial)
@@ -123,7 +124,33 @@ func cmd_dismantle_at(origin: Vector2i) -> Dictionary:
 	GameBus.resources_changed.emit(state.resources.duplicate())
 	GameBus.building_destroyed.emit(building_id, serial)
 	GameBus.nav_dirty.emit()
-	return {ok = true, reason = "", building_id = building_id, origin = origin, refund = refund, serial = serial}
+	return {ok = true, reason = "", building_id = building_id, origin = origin, refund = refund, serial = serial, tier = tier}
+
+
+func cmd_upgrade_building(serial: int) -> Dictionary:
+	if not state.is_running():
+		return {ok = false, reason = "No active run."}
+	if not state.building_instances.has(serial):
+		return {ok = false, reason = "No building."}
+	var building_id := state.building_id_of(serial)
+	if building_id != Ids.TURRET:
+		return {ok = false, reason = "Only turrets upgrade."}
+	var tier := state.building_tier(serial)
+	if not TurretUpgrades.can_upgrade(tier):
+		return {ok = false, reason = "Max tier."}
+	var cost := TurretUpgrades.upgrade_cost(tier)
+	if not Economy.can_afford(state.resources, cost):
+		return {ok = false, reason = "Need %s." % BuildingValue.cost_text(cost)}
+	state.resources = Economy.spend(state.resources, cost)
+	var next_tier := tier + 1
+	state.set_building_tier(serial, next_tier)
+	GameBus.resources_changed.emit(state.resources.duplicate())
+	GameBus.building_upgraded.emit(serial, next_tier)
+	return {ok = true, reason = "", serial = serial, tier = next_tier, cost = cost}
+
+
+func cmd_recover_player() -> Vector3:
+	return PlayBounds.player_safe_pos()
 
 
 func cmd_building_destroyed(serial: int) -> void:

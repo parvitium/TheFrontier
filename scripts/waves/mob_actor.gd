@@ -25,8 +25,8 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	add_to_group("damageable")
 	collision_layer = 4
 	collision_mask = 1 | 2 | 8 | 32
-	floor_max_angle = deg_to_rad(52.0)
-	floor_snap_length = 0.35
+	floor_max_angle = deg_to_rad(48.0)
+	floor_snap_length = 0.45
 	var col := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = def.radius
@@ -48,8 +48,9 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	_agent = NavigationAgent3D.new()
 	_agent.path_desired_distance = 0.55
 	_agent.target_desired_distance = 1.4
+	_agent.path_height_offset = 0.12
 	_agent.avoidance_enabled = false
-	_agent.radius = def.radius
+	_agent.radius = minf(def.radius, 0.55)
 	_agent.height = def.height
 	add_child(_agent)
 	var health := Health.new()
@@ -97,6 +98,7 @@ func _physics_process(delta: float) -> void:
 			velocity.z = 0.0
 			velocity.y -= 18.0 * delta
 			move_and_slide()
+			_keep_on_nav()
 			_update_stuck(delta, true)
 			return
 	if dist <= MobStuck.melee_reach(def, _focus):
@@ -122,6 +124,7 @@ func _chase(target: Node3D, delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= 18.0 * delta
 	move_and_slide()
+	_keep_on_nav()
 	if dir.length() > 0.1:
 		var look := global_position + dir
 		if absf(dir.dot(Vector3.UP)) < 0.995:
@@ -137,6 +140,7 @@ func _move(dir: Vector3, delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= 18.0 * delta
 	move_and_slide()
+	_keep_on_nav()
 
 
 func _pick_focus() -> Node3D:
@@ -297,6 +301,17 @@ func _recover(action: int) -> void:
 			velocity = Vector3.ZERO
 
 
+func _keep_on_nav() -> void:
+	if PlayBounds.needs_recovery(global_position):
+		_respawn_on_ring()
+		velocity = Vector3.ZERO
+		return
+	var ground_y := Landscape.height_at(global_position.x, global_position.z)
+	if global_position.y < ground_y - 0.55:
+		global_position.y = ground_y + 0.12
+		velocity.y = 0.0
+
+
 func _snap_to_nav() -> void:
 	if _agent == null:
 		return
@@ -305,8 +320,8 @@ func _snap_to_nav() -> void:
 		return
 	var closest: Vector3 = NavigationServer3D.map_get_closest_point(map, global_position)
 	var d: float = closest.distance_to(global_position)
-	if d > 0.25 and d < 12.0:
-		global_position = closest + Vector3(0.0, 0.06, 0.0)
+	if d > 0.2 and d < 14.0:
+		global_position = Landscape.seat(closest, 0.12)
 
 
 func _nudge_off_obstacle() -> void:

@@ -1,6 +1,12 @@
 class_name Arena
 extends Node3D
 
+const NAV_CELL_SIZE := 0.35
+const NAV_AGENT_RADIUS := 0.4
+const NAV_AGENT_HEIGHT := 1.6
+const NAV_AGENT_MAX_CLIMB := 1.5
+const NAV_AGENT_MAX_SLOPE := 46.0
+
 var _nav_dirty: bool = false
 var _nav_cooldown: float = 0.0
 
@@ -36,12 +42,12 @@ func _ensure_nav_tree() -> void:
 	var region := NavigationRegion3D.new()
 	region.name = "NavigationRegion3D"
 	var mesh := NavigationMesh.new()
-	mesh.cell_size = 0.4
-	mesh.cell_height = 0.25
-	mesh.agent_radius = 0.5
-	mesh.agent_height = 1.75
-	mesh.agent_max_climb = 1.15
-	mesh.agent_max_slope = 50.0
+	mesh.cell_size = NAV_CELL_SIZE
+	mesh.cell_height = 0.2
+	mesh.agent_radius = NAV_AGENT_RADIUS
+	mesh.agent_height = NAV_AGENT_HEIGHT
+	mesh.agent_max_climb = NAV_AGENT_MAX_CLIMB
+	mesh.agent_max_slope = NAV_AGENT_MAX_SLOPE
 	mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	mesh.filter_baking_aabb = AABB(Vector3(-37.0, -6.0, -37.0), Vector3(74.0, 18.0, 74.0))
 	region.navigation_mesh = mesh

@@ -5,9 +5,12 @@ var catalog: Array[BuildingDef] = []
 var index: int = 0
 var active: bool = false
 var last_reason: String = ""
+var selected_serial: int = -1
+var sell_hold: float = 0.0
 var _ghost: MeshInstance3D
 var _origin: Vector2i = Vector2i.ZERO
 var _valid: bool = false
+var _aimed_serial: int = -1
 
 
 func _ready() -> void:
@@ -39,10 +42,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func set_active(on: bool) -> void:
 	active = on
-	_ghost.visible = on
+	_ghost.visible = on and selected_serial < 0
 	if on:
 		catalog = BuildingCatalog.available_for_mode(Session.mode)
 		index = clampi(index, 0, max(0, catalog.size() - 1))
+	else:
+		clear_selection()
+		sell_hold = 0.0
 
 
 func current() -> BuildingDef:
@@ -52,6 +58,10 @@ func current() -> BuildingDef:
 
 
 func update_ghost(camera: Camera3D) -> void:
+	_aimed_serial = _building_under_aim(camera)
+	if selected_serial >= 0:
+		_ghost.visible = false
+		return
 	if not active or current() == null:
 		_ghost.visible = false
 		return
@@ -96,12 +106,19 @@ func update_ghost(camera: Camera3D) -> void:
 	elif not afford:
 		last_reason = "Need %d scrap, %d crystal." % [def.scrap_cost, def.crystal_cost]
 	else:
-		last_reason = "LMB place · %s" % def.display_name
+		last_reason = "LMB place · RMB cancel · %s" % def.display_name
+	if _aimed_serial >= 0:
+		last_reason = "LMB inspect · RMB cancel"
 	_ghost.material_override = _ghost_mat(_valid)
 	_ghost.visible = true
 
 
 func try_place() -> void:
+	if selected_serial >= 0:
+		return
+	if _aimed_serial >= 0:
+		select_serial(_aimed_serial)
+		return
 	if not active or current() == null or not _valid:
 		return
 	var result := Session.cmd_try_place(current().id, _origin)
@@ -115,30 +132,111 @@ func try_place() -> void:
 		last_reason = result.reason
 
 
-func try_dismantle(camera: Camera3D) -> void:
-	var from := camera.global_position
-	var to := from - camera.global_transform.basis.z * 10.0
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 8
-	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
+func cancel_placement() -> void:
+	sell_hold = 0.0
+	if selected_serial >= 0:
+		clear_selection()
+		last_reason = "Closed."
 		return
-	var collider := hit.collider as Node
-	if collider == null or not collider.has_meta("grid_origin"):
+	last_reason = "Placement cancelled."
+
+
+func select_serial(serial: int) -> void:
+	if serial < 0 or not Session.state.building_instances.has(serial):
 		return
-	var origin: Vector2i = collider.get_meta("grid_origin")
+	selected_serial = serial
+	sell_hold = 0.0
+	_ghost.visible = false
+	last_reason = "Inspecting."
+
+
+func clear_selection() -> void:
+	selected_serial = -1
+	sell_hold = 0.0
+
+
+func tick_sell_hold(delta: float, holding: bool) -> bool:
+	if selected_serial < 0:
+		sell_hold = 0.0
+		return false
+	if not holding:
+		sell_hold = 0.0
+		return false
+	sell_hold += delta
+	if sell_hold >= BuildingValue.SELL_HOLD:
+		sell_hold = 0.0
+		return confirm_sell()
+	return false
+
+
+func confirm_sell() -> bool:
+	if selected_serial < 0:
+		return false
+	var origin := _origin_of_serial(selected_serial)
 	var result := Session.cmd_dismantle_at(origin)
-	if result.ok and collider.has_method("dismantle"):
-		collider.dismantle()
-	elif result.ok:
-		collider.queue_free()
+	clear_selection()
+	if result.ok:
+		last_reason = "Sold · refund %s" % BuildingValue.refund_text(result.refund)
+		return true
+	last_reason = str(result.get("reason", "Cannot sell."))
+	return false
+
+
+func try_upgrade() -> bool:
+	if selected_serial < 0:
+		return false
+	var result := Session.cmd_upgrade_building(selected_serial)
+	if result.ok:
+		last_reason = "Upgraded to %s." % TurretUpgrades.label_for(int(result.tier))
+		return true
+	last_reason = str(result.get("reason", "Cannot upgrade."))
+	return false
+
+
+func aimed_serial() -> int:
+	return _aimed_serial
 
 
 func status_text() -> String:
+	if selected_serial >= 0:
+		var hold := ""
+		if sell_hold > 0.0:
+			hold = "  selling %.0f%%" % (clampf(sell_hold / BuildingValue.SELL_HOLD, 0.0, 1.0) * 100.0)
+		return "[INSPECT] Hold X to sell · RMB close%s" % hold
 	var def := current()
 	if def == null:
 		return ""
 	return "[BUILD] %s  %d scrap / %d crystal — %s" % [def.display_name, def.scrap_cost, def.crystal_cost, last_reason]
+
+
+func _building_under_aim(camera: Camera3D) -> int:
+	if camera == null:
+		return -1
+	var from := camera.global_position
+	var to := from - camera.global_transform.basis.z * 12.0
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 8
+	var hit := camera.get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return -1
+	var collider := hit.collider as Node
+	if collider == null:
+		return -1
+	if collider.has_meta("building_serial"):
+		return int(collider.get_meta("building_serial"))
+	if collider is BuildingBase:
+		return (collider as BuildingBase).serial
+	return -1
+
+
+func _origin_of_serial(serial: int) -> Vector2i:
+	if not Session.state.building_instances.has(serial):
+		return Vector2i.ZERO
+	var info: Dictionary = Session.state.building_instances[serial]
+	var cells: Array = info.get("cells", [])
+	if cells.is_empty():
+		return Vector2i.ZERO
+	return cells[0] as Vector2i
 
 
 func _cycle(step: int) -> void:

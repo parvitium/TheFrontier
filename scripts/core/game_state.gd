@@ -86,7 +86,7 @@ func is_running() -> bool:
 func occupy(cells: Array[Vector2i], building_id: String) -> int:
 	var serial := next_building_serial
 	next_building_serial += 1
-	building_instances[serial] = {id = building_id, cells = cells}
+	building_instances[serial] = {id = building_id, cells = cells, tier = 0}
 	for cell in cells:
 		occupied_cells[cell] = serial
 	return serial
@@ -100,6 +100,20 @@ func building_id_of(serial: int) -> String:
 	if not building_instances.has(serial):
 		return ""
 	return str(building_instances[serial].id)
+
+
+func building_tier(serial: int) -> int:
+	if not building_instances.has(serial):
+		return 0
+	return int(building_instances[serial].get("tier", 0))
+
+
+func set_building_tier(serial: int, tier: int) -> void:
+	if not building_instances.has(serial):
+		return
+	var info: Dictionary = building_instances[serial]
+	info.tier = tier
+	building_instances[serial] = info
 
 
 func free_serial(serial: int) -> String:

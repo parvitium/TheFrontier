@@ -13,9 +13,11 @@ var _banner_plate: PanelContainer
 var _hint_plate: PanelContainer
 var _cross: ColorRect
 var _banner_time: float = 0.0
+var building_panel: BuildingPanel
 
 
 func _ready() -> void:
+	add_to_group("hud")
 	layer = 10
 	var root := Control.new()
 	root.name = "HudRoot"
@@ -94,7 +96,22 @@ func _ready() -> void:
 	_cross.offset_bottom = 2
 	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_cross)
+	building_panel = BuildingPanel.new()
+	building_panel.name = "BuildingPanel"
+	building_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	building_panel.anchor_left = 1.0
+	building_panel.anchor_right = 1.0
+	building_panel.offset_left = -400
+	building_panel.offset_right = -24
+	building_panel.offset_top = -140
+	building_panel.offset_bottom = 160
+	building_panel.upgrade_pressed.connect(_on_upgrade_pressed)
+	building_panel.sell_pressed.connect(_on_sell_pressed)
+	building_panel.closed.connect(_on_panel_closed)
+	root.add_child(building_panel)
 	GameBus.banner.connect(_on_banner)
+	GameBus.building_upgraded.connect(func(_s: int, _t: int) -> void: _refresh_building_panel())
+	GameBus.resources_changed.connect(func(_w: Dictionary) -> void: _refresh_building_panel())
 	_on_banner("Fortify the core. Waves will not wait.")
 
 
@@ -143,6 +160,43 @@ func _objective_text(mode: GameModeDef, state: GameState) -> String:
 		GameModeDef.Kind.ENDLESS:
 			return "Endless  ·  waves cleared %d  ·  relics %d" % [state.waves_completed, state.relics_collected]
 	return ""
+
+
+func show_building(serial: int) -> void:
+	if building_panel:
+		building_panel.open(serial)
+
+
+func hide_building() -> void:
+	if building_panel and building_panel.is_open():
+		building_panel.close_panel()
+
+
+func _refresh_building_panel() -> void:
+	if building_panel and building_panel.is_open():
+		building_panel.refresh()
+
+
+func _on_upgrade_pressed() -> void:
+	var player := get_tree().get_first_node_in_group("player") as PlayerController
+	if player and player._builder:
+		player._builder.try_upgrade()
+		_refresh_building_panel()
+
+
+func _on_sell_pressed() -> void:
+	var player := get_tree().get_first_node_in_group("player") as PlayerController
+	if player and player._builder:
+		player._builder.confirm_sell()
+		player._sync_inspect_panel()
+		player.sync_mouse_mode()
+
+
+func _on_panel_closed() -> void:
+	var player := get_tree().get_first_node_in_group("player") as PlayerController
+	if player and player._builder and player._builder.selected_serial >= 0:
+		player._builder.clear_selection()
+		player.sync_mouse_mode()
 
 
 func _on_banner(text: String) -> void:
