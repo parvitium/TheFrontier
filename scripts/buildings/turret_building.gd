@@ -41,7 +41,12 @@ func _physics_process(_delta: float) -> void:
 		if Session.cmd_try_turret_fire(serial, target, DAMAGE, INTERVAL):
 			var muzzle := VisualKit.find_node(self, "Muzzle")
 			var from := muzzle.global_position if muzzle else global_position + Vector3(0, 1.15, 0)
-			CombatFx.tracer(get_tree().current_scene, from, target.global_position + Vector3(0, 1.0, 0), Color(0.4, 0.95, 1.0))
+			var to := target.global_position + Vector3(0, 1.0, 0)
+			var host: Node = get_tree().current_scene
+			var col := Color(0.4, 0.95, 1.0)
+			CombatFx.muzzle_flash(self, from, col, FxSurface.SHOT_SPELL, (to - from).normalized())
+			CombatFx.tracer(host, from, to, col, FxSurface.SHOT_SPELL)
+			CombatFx.impact(host, to, col, target, (from - to).normalized())
 			Sfx.play("turret_shot", randf_range(0.92, 1.08))
 
 

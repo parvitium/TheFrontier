@@ -26,6 +26,7 @@ static func _rifle() -> WeaponDef:
 	d.reload_time = 1.8
 	d.range = 90.0
 	d.automatic = true
+	d.shot_vfx = "kinetic"
 	return d
 
 
@@ -42,4 +43,5 @@ static func _shotgun() -> WeaponDef:
 	d.reload_time = 2.4
 	d.range = 28.0
 	d.automatic = false
+	d.shot_vfx = "fire"
 	return d

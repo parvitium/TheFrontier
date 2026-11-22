@@ -13,6 +13,7 @@ func _ready() -> void:
 	_add_player()
 	_add_director()
 	_add_hud()
+	CombatFx.warmup(self)
 	GameBus.nav_dirty.connect(_on_nav_dirty)
 	GameBus.wave_cleared.connect(_on_wave_cleared)
 	call_deferred("rebake_nav")

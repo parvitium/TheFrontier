@@ -2,6 +2,7 @@ class_name MobDef
 extends Resource
 
 enum TargetBias { CORE, PLAYER, HYBRID }
+enum BodyKind { ORGANIC, SKELETAL, MECHANICAL, MAGICAL }
 
 @export var id: String = ""
 @export var display_name: String = ""
@@ -19,3 +20,5 @@ enum TargetBias { CORE, PLAYER, HYBRID }
 @export var color: Color = Color(0.8, 0.2, 0.2)
 @export var radius: float = 0.45
 @export var height: float = 1.6
+@export var body_kind: BodyKind = BodyKind.ORGANIC
+@export var shot_vfx: String = ""
