@@ -31,6 +31,7 @@ static func _rusher() -> MobDef:
 	d.color = Color(0.86, 0.22, 0.18)
 	d.radius = 0.38
 	d.height = 1.5
+	d.body_kind = MobDef.BodyKind.ORGANIC
 	return d
 
 
@@ -52,6 +53,8 @@ static func _ranger() -> MobDef:
 	d.color = Color(0.62, 0.28, 0.86)
 	d.radius = 0.4
 	d.height = 1.7
+	d.body_kind = MobDef.BodyKind.SKELETAL
+	d.shot_vfx = "ice"
 	return d
 
 
@@ -69,4 +72,5 @@ static func _tank() -> MobDef:
 	d.color = Color(0.28, 0.32, 0.36)
 	d.radius = 0.7
 	d.height = 2.1
+	d.body_kind = MobDef.BodyKind.MECHANICAL
 	return d

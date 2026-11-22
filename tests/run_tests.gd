@@ -25,6 +25,7 @@ func _ready() -> void:
 	_resource_restock()
 	_settings_and_visuals()
 	_player_hit_combat_fx()
+	_combat_vfx_pool()
 	_mouse_look_and_capture()
 	_terrain_and_seating()
 	print("Passed: %d  Failed: %d" % [_passed, _failed])
@@ -738,34 +739,109 @@ func _player_hit_combat_fx() -> void:
 	var host := Node3D.new()
 	host.name = "Arena"
 	add_child(host)
-	var probe := CombatFx.new()
-	_ok(probe is Node3D, "CombatFx is a Node3D")
-	probe.free()
-	var dest := Vector3(3.0, 1.25, -6.0)
+	CombatFx.warmup(host)
+	var pool := CombatFx.pool_for(host)
+	_ok(pool != null and pool is Node3D, "CombatFx pool is a Node3D under the host")
+	_ok(pool.max_particle_amount() <= CombatFx.CAP_EXPLODE, "warmup respects particle caps")
+	var rusher_def := MobCatalog.by_id(Ids.RUSHER)
+	var mob := MobActor.new()
+	host.add_child(mob)
+	mob.configure(rusher_def)
+	mob.global_position = Vector3(3.0, 0.0, -6.0)
+	var dest := mob.global_position + Vector3(0.0, 1.1, 0.0)
 	var muzzle := Vector3(0.2, 1.5, 0.4)
+	var hp_before: float = (mob.get_node("Health") as Health).current
 	for _pellet in 8:
-		CombatFx.impact(host, dest)
-		CombatFx.tracer(host, muzzle, dest)
-	var impacts: int = 0
-	var tracers: int = 0
-	var placed: bool = true
-	for child in host.get_children():
-		if not child is CombatFx:
-			continue
-		var fx := child as CombatFx
-		if fx.get_child_count() > 0 and fx.get_child(0) is GPUParticles3D:
-			impacts += 1
-			placed = placed and fx.global_position.distance_to(dest) < 0.001
-		elif fx.get_child_count() > 0 and fx.get_child(0) is MeshInstance3D:
-			tracers += 1
-	_ok(impacts == 8, "player-hit path spawned impact FX per pellet")
-	_ok(tracers == 8, "player-hit path spawned tracer FX per pellet")
-	_ok(placed, "impact FX sits at the hit location")
-	var kids: Array[Node] = host.get_children()
-	for child2 in kids:
-		if child2 is CombatFx:
-			(child2 as CombatFx)._process(0.5)
+		CombatFx.impact(host, dest, Color(1.0, 0.78, 0.34), mob, Vector3.UP)
+		CombatFx.tracer(host, muzzle, dest, Color(1.0, 0.78, 0.34), "kinetic")
+	CombatFx.hit_flash(mob, 11.0)
+	_ok(Session.cmd_resolve_hit("player", mob, 11.0), "player-shot resolve_hit on live mob")
+	_ok((mob.get_node("Health") as Health).current < hp_before, "player shot reduced mob HP")
+	_ok(pool.pooled_active("impact") > 0, "player-hit path spawned pooled impacts")
+	_ok(pool.pooled_active("tracer") > 0, "player-hit path spawned pooled tracers")
+	for _step in 10:
+		pool._tick(0.05)
 	_ok(is_instance_valid(host), "player-hit FX process did not free the arena host")
+	_ok(is_instance_valid(mob), "player-hit FX process did not free the live mob")
+	var t0: int = Time.get_ticks_msec()
+	for _burst in 24:
+		for _pellet2 in 8:
+			CombatFx.impact(host, dest, Color(1.0, 0.78, 0.34), mob, Vector3.UP)
+			CombatFx.tracer(host, muzzle, dest)
+		CombatFx.hit_flash(mob, 11.0)
+		pool._tick(0.016)
+	var stress_ms: int = Time.get_ticks_msec() - t0
+	_ok(stress_ms < 2500, "player-shot-on-mob stress did not freeze (%dms)" % stress_ms)
+	_ok(is_instance_valid(host) and is_instance_valid(mob), "stress left host and mob valid")
+	_ok(pool.max_particle_amount() <= CombatFx.CAP_EXPLODE, "stress kept particle amounts capped")
+	var idle_impacts: int = pool.pooled_idle("impact")
+	for _drain in 24:
+		pool._tick(0.05)
+	_ok(pool.pooled_idle("impact") >= idle_impacts, "impacts return to the pool")
+	host.free()
+
+
+func _combat_vfx_pool() -> void:
+	print("combat vfx pool")
+	_boot(Ids.MODE_SURVIVE)
+	_ok(WeaponCatalog.by_id(Ids.RIFLE).shot_vfx == "kinetic", "pulse rifle is kinetic")
+	_ok(WeaponCatalog.by_id(Ids.SHOTGUN).shot_vfx == "fire", "scatter cannon is fire")
+	_ok(MobCatalog.by_id(Ids.RUSHER).body_kind == MobDef.BodyKind.ORGANIC, "rusher is organic")
+	_ok(MobCatalog.by_id(Ids.RANGER).body_kind == MobDef.BodyKind.SKELETAL, "ranger is skeletal")
+	_ok(MobCatalog.by_id(Ids.RANGER).shot_vfx == "ice", "ranger fires ice")
+	_ok(MobCatalog.by_id(Ids.TANK).body_kind == MobDef.BodyKind.MECHANICAL, "tank is mechanical")
+	_ok(FxSurface.of_mob_def(MobCatalog.by_id(Ids.RUSHER)) == FxSurface.ORGANIC, "classify rusher organic")
+	_ok(FxSurface.of_mob_def(MobCatalog.by_id(Ids.RANGER)) == FxSurface.SKELETAL, "classify ranger skeletal")
+	_ok(FxSurface.of_mob_def(MobCatalog.by_id(Ids.TANK)) == FxSurface.METAL, "classify tank metal")
+	_ok(FxSurface.of_collider(null) == FxSurface.TERRAIN, "null collider is terrain")
+	_ok(FxSurface.death_explodes(FxSurface.METAL) and FxSurface.death_explodes(FxSurface.MAGICAL), "metal and magical explode")
+	_ok(not FxSurface.death_explodes(FxSurface.ORGANIC), "organic does not explode")
+	_ok(ResourceLoader.exists("res://assets/shaders/combat_particle_add.gdshader"), "additive particle shader")
+	_ok(ResourceLoader.exists("res://assets/shaders/combat_particle_mix.gdshader"), "mix particle shader")
+	_ok(ResourceLoader.exists("res://assets/shaders/combat_tracer.gdshader"), "tracer shader")
+	_ok(ResourceLoader.exists("res://assets/shaders/hit_flash.gdshader"), "hit-flash shader")
+	var host := Node3D.new()
+	host.name = "VfxHost"
+	add_child(host)
+	var wall := WallBuilding.new()
+	host.add_child(wall)
+	wall.setup(BuildingCatalog.by_id(Ids.WALL), Vector2i(6, 6), 8101)
+	_ok(FxSurface.of_collider(wall) == FxSurface.METAL, "buildings classify as metal")
+	var rusher := MobActor.new()
+	host.add_child(rusher)
+	rusher.configure(MobCatalog.by_id(Ids.RUSHER))
+	_ok(FxSurface.of_collider(rusher) == FxSurface.ORGANIC, "live rusher classifies organic")
+	CombatFx.warmup(host)
+	var pool := CombatFx.pool_for(host)
+	var kids_before: int = pool.get_child_count()
+	CombatFx.impact(host, rusher.global_position + Vector3(0, 1, 0), Color(1, 0.7, 0.3), rusher, Vector3.UP)
+	CombatFx.impact(host, wall.global_position + Vector3(0, 1, 0), Color(1, 0.7, 0.3), wall, Vector3.UP)
+	CombatFx.impact(host, Vector3(2, 0.1, 2), Color(0.7, 0.5, 0.3), null, Vector3.UP)
+	var ranger := MobActor.new()
+	host.add_child(ranger)
+	ranger.configure(MobCatalog.by_id(Ids.RANGER))
+	CombatFx.impact(host, ranger.global_position + Vector3(0, 1, 0), Color(0.8, 0.8, 0.6), ranger, Vector3.UP)
+	CombatFx.muzzle_flash(host, Vector3(0, 1.4, 0), Color(1, 0.5, 0.15), "fire", Vector3.FORWARD)
+	CombatFx.projectile_burst(host, Vector3(0, 1.4, 1), "ice")
+	CombatFx.projectile_burst(host, Vector3(0, 1.4, 2), "spell")
+	CombatFx.tracer(host, Vector3.ZERO, Vector3(0, 1, -8), Color(0.4, 0.95, 1.0), "spell")
+	_ok(pool.get_child_count() == kids_before, "playing FX does not allocate new pool nodes")
+	for amt in pool.particle_amounts():
+		_ok(amt <= CombatFx.CAP_EXPLODE, "emitter amount %d within cap" % amt)
+	Session.cmd_damage_mob(rusher, 999.0)
+	_ok(pool.pooled_active("corpse") >= 1 or pool.pooled_idle("corpse") < CombatFx.POOL_CORPSE, "organic death left a corpse")
+	var tank := MobActor.new()
+	host.add_child(tank)
+	tank.configure(MobCatalog.by_id(Ids.TANK))
+	Session.cmd_damage_mob(tank, 999.0)
+	_ok(pool.pooled_active("death") >= 1, "mechanical death spawned a burst")
+	for _linger in 260:
+		pool._tick(0.05)
+	_ok(pool.pooled_active("corpse") == 0, "corpses sink and return to the pool after 8-10s")
+	_ok(is_instance_valid(host), "death FX did not free the host")
+	wall.free()
+	if is_instance_valid(ranger):
+		ranger.free()
 	host.free()
 
 

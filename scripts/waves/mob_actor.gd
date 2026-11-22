@@ -55,10 +55,12 @@ func configure(p_def: MobDef, p_hp_mult: float = 1.0, p_dmg_mult: float = 1.0) -
 	var health := Health.new()
 	health.name = "Health"
 	health.configure(def.max_health * hp_mult, "mob")
+	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
 	add_child(health)
-	_stuck_anchor = global_position
-	_anchor_ready = true
+	if is_inside_tree():
+		_stuck_anchor = global_position
+		_anchor_ready = true
 
 
 func apply_slow(factor: float, duration: float) -> void:
@@ -232,6 +234,7 @@ func _try_ranged() -> void:
 	_ranged_cd = def.ranged_interval
 	var bolt := MobProjectile.new()
 	bolt.damage = def.ranged_damage * dmg_mult
+	bolt.shot_vfx = def.shot_vfx if def.shot_vfx != "" else "spell"
 	bolt.global_position = global_position + Vector3(0, def.height * 0.7, 0)
 	var aim := _focus.global_position + Vector3(0, 1.2, 0)
 	bolt.direction = (aim - bolt.global_position).normalized()
@@ -330,6 +333,10 @@ func _respawn_on_ring() -> void:
 	_snap_to_nav()
 
 
+func _on_damaged(amount: float, _source: Node) -> void:
+	CombatFx.hit_flash(self, amount)
+
+
 func _on_died(_source: Node) -> void:
 	Session.cmd_mob_killed(def.id if def else Ids.RUSHER)
-	queue_free()
+	CombatFx.begin_death(self)

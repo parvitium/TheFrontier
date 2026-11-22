@@ -33,12 +33,17 @@ func tick(delta: float, camera: Camera3D, fire_held: bool, fire_tap: bool, reloa
 	if want_fire:
 		var shot := Session.cmd_try_fire()
 		if shot.ok:
-			_flash.light_energy = 4.2
+			_flash.light_energy = 5.6 if def.shot_vfx == "fire" else 4.2
 			_recoil = 1.0
 			var muzzle_pos := _muzzle.global_position if _muzzle else camera.global_position - camera.global_transform.basis.z * 0.7
-			CombatFx.muzzle_flash(self, muzzle_pos, Color(1.0, 0.78, 0.32) if Session.state.selected_weapon == 0 else Color(1.0, 0.55, 0.2))
+			var forward := -camera.global_transform.basis.z
+			var shot_vfx := def.shot_vfx if def.shot_vfx != "" else "kinetic"
+			var flash_col := FxSurface.shot_color(shot_vfx)
+			CombatFx.muzzle_flash(self, muzzle_pos, flash_col, shot_vfx, forward)
+			if shot_vfx != "kinetic":
+				CombatFx.projectile_burst(camera.get_tree().current_scene if camera.get_tree() else self, muzzle_pos, shot_vfx)
 			Sfx.play("fire_rifle" if Session.state.selected_weapon == 0 else "fire_shotgun", randf_range(0.94, 1.06))
-			_hitscan(camera, shot, muzzle_pos)
+			_hitscan(camera, shot, muzzle_pos, shot_vfx, flash_col)
 
 
 func current_def() -> WeaponDef:
@@ -54,7 +59,7 @@ func equip(i: int) -> void:
 	_refresh_view()
 
 
-func _hitscan(camera: Camera3D, shot: Dictionary, muzzle_pos: Vector3) -> void:
+func _hitscan(camera: Camera3D, shot: Dictionary, muzzle_pos: Vector3, shot_vfx: String = "kinetic", tracer_color: Color = Color(1.0, 0.82, 0.35)) -> void:
 	var origin := camera.global_position
 	var forward := -camera.global_transform.basis.z
 	var space := camera.get_world_3d()
@@ -72,15 +77,18 @@ func _hitscan(camera: Camera3D, shot: Dictionary, muzzle_pos: Vector3) -> void:
 	if host == null or not host is Node3D:
 		host = camera
 	for _i in pellets:
-		var hit := Hitscan.fire(space, origin, forward, reach, exclude, damage, self, spread)
+		var hit := Hitscan.query(space, origin, forward, reach, exclude, spread)
 		var dest: Vector3
 		if bool(hit.get("hit", false)):
 			dest = hit.position
-			CombatFx.impact(host, dest)
+			var collider: Object = hit.get("collider", null)
+			var normal: Vector3 = hit.get("normal", Vector3.UP)
+			CombatFx.impact(host, dest, tracer_color, collider, normal)
+			Session.cmd_resolve_hit("player", collider, damage)
 		else:
 			var dir: Vector3 = hit.get("dir", forward)
 			dest = origin + dir * reach
-		CombatFx.tracer(host, muzzle_pos, dest)
+		CombatFx.tracer(host, muzzle_pos, dest, tracer_color, shot_vfx)
 
 
 func _refresh_view() -> void:

@@ -12,3 +12,4 @@ extends Resource
 @export var reload_time: float = 1.8
 @export var range: float = 80.0
 @export var automatic: bool = true
+@export var shot_vfx: String = "kinetic"

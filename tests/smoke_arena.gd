@@ -106,8 +106,49 @@ func _check() -> void:
 	if health.current >= before:
 		_fail("MobActor HP unchanged after Session damage")
 		return
+	if not _fire_player_shot_at_probe(arena):
+		return
 	print("SMOKE OK mode=%s wall>=%.1fs sim=%.2fs relics=%d mob_move=%.2f mob_hp=%.1f" % [_mode, _seconds, Session.state.elapsed_time, get_tree().get_nodes_in_group("relics").size(), traveled, health.current])
 	get_tree().quit(0)
+
+
+func _fire_player_shot_at_probe(arena: Node) -> bool:
+	var player := arena.get_node_or_null("Player") as CharacterBody3D
+	if player == null or not is_instance_valid(_probe):
+		_fail("player-shot path missing player or mob")
+		return false
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam == null:
+		_fail("player-shot path missing camera")
+		return false
+	var forward := -cam.global_transform.basis.z
+	_probe.global_position = Landscape.seat(player.global_position + forward * 4.5, 0.2)
+	var origin := cam.global_position
+	var muzzle := origin + forward * 0.6
+	var hit: Dictionary = Hitscan.query(cam.get_world_3d(), origin, forward, 40.0, [player.get_rid()])
+	var dest: Vector3 = _probe.global_position + Vector3(0.0, 1.0, 0.0)
+	var collider: Object = _probe
+	var normal := Vector3.UP
+	if bool(hit.get("hit", false)):
+		dest = hit.position
+		collider = hit.get("collider", _probe)
+		normal = hit.get("normal", Vector3.UP)
+	CombatFx.muzzle_flash(player, muzzle, Color(1.0, 0.78, 0.34), "kinetic", forward)
+	CombatFx.tracer(arena, muzzle, dest, Color(1.0, 0.78, 0.34), "kinetic")
+	CombatFx.impact(arena, dest, Color(1.0, 0.78, 0.34), collider, normal)
+	if collider is Node:
+		Session.cmd_resolve_hit("player", collider, 11.0)
+	var pool := CombatFx.pool_for(arena)
+	if pool == null:
+		_fail("combat FX pool missing after player shot")
+		return false
+	if pool.max_particle_amount() > CombatFx.CAP_EXPLODE:
+		_fail("player-shot FX exceeded particle cap")
+		return false
+	if not is_instance_valid(arena):
+		_fail("player-shot-on-mob freed the arena")
+		return false
+	return true
 
 
 func _fail(reason: String) -> void:

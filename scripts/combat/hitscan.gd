@@ -6,7 +6,7 @@ extends RefCounted
 const HOSTILE_MASK := 1 | 4 | 8
 
 
-static func fire(space: World3D, origin: Vector3, direction: Vector3, distance: float, exclude: Array[RID], damage: float, source: Node, spread_deg: float = 0.0) -> Dictionary:
+static func query(space: World3D, origin: Vector3, direction: Vector3, distance: float, exclude: Array[RID], spread_deg: float = 0.0) -> Dictionary:
 	var dir := direction.normalized()
 	if spread_deg > 0.0:
 		dir = _spread(dir, spread_deg)
@@ -17,9 +17,21 @@ static func fire(space: World3D, origin: Vector3, direction: Vector3, distance: 
 	query.collision_mask = HOSTILE_MASK
 	var hit := space.direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return {hit = false, dir = dir}
-	_apply_damage(hit.collider, damage, source)
-	return {hit = true, position = hit.position, collider = hit.collider, dir = dir}
+		return {hit = false, dir = dir, position = origin + dir * distance, normal = Vector3.UP, collider = null}
+	return {
+		hit = true,
+		position = hit.position,
+		collider = hit.collider,
+		normal = hit.get("normal", Vector3.UP),
+		dir = dir,
+	}
+
+
+static func fire(space: World3D, origin: Vector3, direction: Vector3, distance: float, exclude: Array[RID], damage: float, source: Node, spread_deg: float = 0.0) -> Dictionary:
+	var hit := query(space, origin, direction, distance, exclude, spread_deg)
+	if bool(hit.get("hit", false)):
+		_apply_damage(hit.collider, damage, source)
+	return hit
 
 
 static func _apply_damage(collider: Object, damage: float, _source: Node) -> void:
