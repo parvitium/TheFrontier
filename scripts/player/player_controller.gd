@@ -98,7 +98,12 @@ static func gameplay_mouse_mode(paused: bool, in_menu: bool = false) -> Input.Mo
 func sync_mouse_mode() -> void:
 	if _is_headless() or get_tree() == null:
 		return
-	Input.mouse_mode = gameplay_mouse_mode(get_tree().paused)
+	if get_tree().paused:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif _builder and _builder.selected_serial >= 0:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		Input.mouse_mode = gameplay_mouse_mode(false)
 
 
 func apply_look(relative: Vector2) -> void:
@@ -130,19 +135,58 @@ func _physics_process(delta: float) -> void:
 	velocity.x = wish.x * speed
 	velocity.z = wish.z * speed
 	move_and_slide()
-	if building_mode:
-		_builder.update_ghost(_camera)
-		if Input.is_action_just_pressed("fire"):
-			_builder.try_place()
-		if Input.is_action_just_pressed("dismantle") or Input.is_action_just_pressed("alt_fire"):
-			_builder.try_dismantle(_camera)
-	else:
-		_weapons.tick(delta, _camera, Input.is_action_pressed("fire"), Input.is_action_just_pressed("fire"), Input.is_action_just_pressed("reload"))
+	if PlayBounds.needs_recovery(global_position):
+		global_position = Session.cmd_recover_player()
+		velocity = Vector3.ZERO
+	_tick_build_and_inspect(delta)
 	_try_gather(delta)
 
 
+func _tick_build_and_inspect(delta: float) -> void:
+	_builder.update_ghost(_camera)
+	var inspecting := _builder.selected_serial >= 0
+	if Input.is_action_just_pressed("alt_fire"):
+		_builder.cancel_placement()
+		_sync_inspect_panel()
+		sync_mouse_mode()
+		return
+	if inspecting:
+		if _builder.tick_sell_hold(delta, Input.is_action_pressed("dismantle")):
+			_sync_inspect_panel()
+			sync_mouse_mode()
+			return
+		_sync_inspect_panel()
+		return
+	if building_mode:
+		if Input.is_action_just_pressed("fire"):
+			_builder.try_place()
+			_sync_inspect_panel()
+			sync_mouse_mode()
+	else:
+		if Input.is_action_just_pressed("interact") and _builder.aimed_serial() >= 0:
+			_builder.select_serial(_builder.aimed_serial())
+			_sync_inspect_panel()
+			sync_mouse_mode()
+			return
+		_weapons.tick(delta, _camera, Input.is_action_pressed("fire"), Input.is_action_just_pressed("fire"), Input.is_action_just_pressed("reload"))
+
+
+func _sync_inspect_panel() -> void:
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud == null:
+		return
+	if _builder.selected_serial >= 0:
+		hud.show_building(_builder.selected_serial)
+	else:
+		hud.hide_building()
+
+
 func _try_gather(delta: float) -> void:
+	if _builder.selected_serial >= 0:
+		return
 	_interact_label = ""
+	if not building_mode and _builder.aimed_serial() >= 0:
+		_interact_label = "Press E — inspect"
 	var hit := _aim_body(4.2)
 	if hit.is_empty():
 		return
@@ -175,6 +219,8 @@ func _set_build(enabled: bool) -> void:
 	building_mode = enabled
 	_builder.set_active(enabled)
 	_weapons.visible = not enabled
+	_sync_inspect_panel()
+	sync_mouse_mode()
 
 
 func interact_label() -> String:

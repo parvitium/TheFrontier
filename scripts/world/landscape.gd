@@ -158,6 +158,7 @@ static func build(root: Node3D, with_collision: bool = true) -> void:
 	var t_mesh := Time.get_ticks_msec()
 	if with_collision:
 		_playfield_collision(holder)
+		PlayBounds.install(holder)
 	var t_col := Time.get_ticks_msec()
 	_mesa_buttes(holder)
 	_mesa_debris(holder)

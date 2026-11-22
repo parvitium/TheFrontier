@@ -93,6 +93,12 @@ func _lock_arena_camera(arena: Node) -> void:
 			_shot_close_wall(arena, player)
 		"close_turret":
 			_shot_close_turret(arena, player)
+		"inspect_turret":
+			_shot_inspect_turret(arena, player)
+		"inspect_sell":
+			_shot_inspect_sell(arena, player)
+		"play_edge":
+			_shot_play_edge(arena, player)
 		"rifle":
 			_seat_player(player, Vector3(0.0, 0.0, 6.0), 0.22, 0.12)
 		"wash_fps":
@@ -199,6 +205,47 @@ func _shot_close_turret(arena: Node, player: Node3D) -> void:
 	arena.add_child(cam)
 	cam.look_at(turret.global_position + Vector3(0.0, 1.05, 0.0), Vector3.UP)
 	cam.current = true
+
+
+func _shot_inspect_turret(arena: Node, player: Node3D) -> void:
+	Session.cmd_gather(Ids.SCRAP, 80)
+	Session.cmd_gather(Ids.CRYSTAL, 40)
+	var origin := Vector2i(2, -3)
+	var placed := Session.cmd_try_place(Ids.TURRET, origin)
+	if not bool(placed.get("ok", false)):
+		return
+	var turret := BuildingFactory.spawn(arena as Arena, Ids.TURRET, origin, int(placed.serial))
+	Session.cmd_upgrade_building(int(placed.serial))
+	_seat_player(player, Vector3(6.2, 0.0, -2.4), -0.12, 2.2)
+	var hud := arena.get_node_or_null("HUD") as Hud
+	if hud:
+		hud.show_building(int(placed.serial))
+	if turret and player is PlayerController:
+		(player as PlayerController)._builder.select_serial(int(placed.serial))
+
+
+func _shot_inspect_sell(arena: Node, player: Node3D) -> void:
+	var origin := Vector2i(4, -6)
+	var placed := Session.cmd_try_place(Ids.WALL, origin)
+	if not bool(placed.get("ok", false)):
+		return
+	var wall := BuildingFactory.spawn(arena as Arena, Ids.WALL, origin, int(placed.serial))
+	var at := PlacementRules.seat_origin(Ids.WALL, origin)
+	_seat_player(player, at + Vector3(3.4, 0.0, 2.6), -0.18, 2.45)
+	var hud := arena.get_node_or_null("HUD") as Hud
+	if hud:
+		hud.show_building(int(placed.serial))
+		if hud.building_panel:
+			hud.building_panel._confirming = true
+			hud.building_panel.refresh()
+	if wall == null:
+		return
+
+
+func _shot_play_edge(arena: Node, player: Node3D) -> void:
+	_seat_player(player, Vector3(32.5, 0.0, 0.0), 0.08, -1.57)
+	if player is PlayerController:
+		(player as PlayerController).visible = true
 
 
 func _shot_placement(arena: Node, player: Node3D) -> void:

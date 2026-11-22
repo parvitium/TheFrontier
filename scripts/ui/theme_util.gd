@@ -66,9 +66,11 @@ static func _style_button(button: Button) -> void:
 	button.add_theme_stylebox_override("hover", _btn_box(Color(0.14, 0.28, 0.3, 0.96), Color(0.45, 0.95, 0.88, 0.85)))
 	button.add_theme_stylebox_override("pressed", _btn_box(Color(0.2, 0.42, 0.4, 1.0), Color(0.95, 0.75, 0.35, 0.9)))
 	button.add_theme_stylebox_override("focus", _btn_box(Color(0.12, 0.22, 0.24, 0.96), Color(0.55, 0.95, 0.88, 0.7)))
+	button.add_theme_stylebox_override("disabled", _btn_box(Color(0.07, 0.08, 0.09, 0.78), Color(0.32, 0.34, 0.36, 0.4)))
 	button.add_theme_color_override("font_color", Color(0.88, 0.93, 0.91))
 	button.add_theme_color_override("font_hover_color", Color(0.98, 1.0, 0.94))
 	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.9, 0.55))
+	button.add_theme_color_override("font_disabled_color", Color(0.52, 0.54, 0.55))
 
 
 static func style_option(button: OptionButton) -> void:

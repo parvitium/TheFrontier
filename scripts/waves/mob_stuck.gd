@@ -4,7 +4,7 @@ extends RefCounted
 ## Detects a mob that is not engaged and has not displaced for STUCK_SECONDS.
 ## Recovery is re-path, then nudge, then respawn onto a spawn ring.
 
-const STUCK_SECONDS := 2.5
+const STUCK_SECONDS := 2.0
 const MOVE_EPSILON := 0.35
 const NUDGE_DISTANCE := 1.4
 const PLAYER_RADIUS := 0.36
